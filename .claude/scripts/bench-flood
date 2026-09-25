@@ -1,0 +1,64 @@
+#!/usr/bin/env python3
+# purpose: Time a fixed output flood in the current terminal (PLAN-terminal.md item 7).
+"""Floods the terminal it runs in and reports how long each flood took.
+
+Run it once in Ghostty and once in Oscillate, same window size, then compare the
+medians. The pass bar is Oscillate within 3x of Ghostty.
+
+  seq    `seq 1 2000000` (~15MB of short lines)
+  cat    `cat` of a fixed 20MB file with SGR colors, generated once into $TMPDIR
+
+Times are wall-clock until the producer exits, so they include backpressure from
+the terminal but not the last buffer it hasn't drawn yet.
+"""
+import argparse, os, statistics, subprocess, sys, time
+
+FIXTURE_BYTES = 20_000_000
+
+
+def fixture(path):
+    if os.path.exists(path) and os.path.getsize(path) >= FIXTURE_BYTES:
+        return path
+    lines, size, i = [], 0, 0
+    while size < FIXTURE_BYTES:
+        color = 31 + i % 7
+        line = f"\x1b[{color}m{i:08d}\x1b[0m the quick brown fox jumps over the lazy dog {i * 2654435761 % 2**32:08x}\n"
+        lines.append(line)
+        size += len(line)
+        i += 1
+    with open(path, "w") as f:
+        f.writelines(lines)
+    return path
+
+
+def timed(cmd):
+    start = time.perf_counter()
+    subprocess.run(cmd, check=True)
+    return time.perf_counter() - start
+
+
+def main():
+    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("label", help="what terminal this is, e.g. ghostty or oscillate")
+    p.add_argument("--runs", type=int, default=3, help="runs per flood (default 3)")
+    p.add_argument("--log", help="append a result line to this file")
+    a = p.parse_args()
+    if not sys.stdout.isatty():
+        sys.exit("bench-flood: stdout is not a terminal; run it directly in the terminal under test")
+
+    path = fixture(os.path.join(os.environ.get("TMPDIR", "/tmp"), "oscillate-flood.txt"))
+    results = {}
+    for name, cmd in (("seq", ["seq", "1", "2000000"]), ("cat", ["cat", path])):
+        results[name] = statistics.median(timed(cmd) for _ in range(a.runs))
+
+    size = os.get_terminal_size()
+    line = (f"{a.label}: seq {results['seq']:.2f}s  cat {results['cat']:.2f}s  "
+            f"(median of {a.runs}, {size.columns}x{size.lines})")
+    print(f"\x1b[0m\n{line}")
+    if a.log:
+        with open(a.log, "a") as f:
+            f.write(line + "\n")
+
+
+if __name__ == "__main__":
+    main()
