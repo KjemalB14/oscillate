@@ -9,6 +9,50 @@ Newest entries at the top.
 
 ---
 
+## 2026-09-25 — Chapter 1, slice 1: verified in the running app
+
+Driven by Claude through `osascript` keystrokes, CGEvent clicks and `screencapture`,
+against a separate Ghostty instance at the same 127×40. Items are numbered as in
+`PLAN-terminal.md`.
+
+| # | Item | Result |
+|---|------|--------|
+| 1 | Login shell, `TERM`/`COLORTERM` | **Pass**: `xterm-256color truecolor`, `-zsh`. The "prompt within 1s" bar is **unmeetable as written**: the author's `zsh -lic exit` alone takes 1.37s (in Ghostty too). Oscillate's own overhead is 0.59s from window to shell spawn. |
+| 2 | Option as Meta | **Pass**: Option+B/F/Backspace. |
+| 3 | Cmd+C / Cmd+V | **Pass**: multi-line paste is byte-identical; double-click and drag copy exactly; Cmd+C with no selection neither copies nor interrupts. One early two-line copy did not reproduce. |
+| 4 | Links | **Pass**: Cmd+click opens OSC 8 and plain URLs; a plain click does nothing. |
+| 5 | Truecolor, emoji, wide | **Pass** after adding `addon-unicode-graphemes`. The gradient is smooth and CJK/combining marks align. zsh's line editor still draws 👍🏽 as two glyphs while typing, and its one-cell gap after wide chars appears in Ghostty too. |
+| 6 | Resize | **Pass**: `top` redraws cleanly; `tput` follows (127×40 → 80×21 → 127×40). |
+| 7 | Throughput | **seq passes, cat fails.** In release, `seq 1 2000000` takes 3.67s against Ghostty's 2.24s (1.6×), and the 20MB colored `cat` takes 1.71s against 0.28s (**6.1×**, bar 3×). Ctrl+C during a 100M-line flood reaches the prompt within about 20ms of the key. |
+| 8 | Footprint (release) | Idle: 156 MiB (app 30, WebContent 98, GPU 18, Networking 6, zsh 4) at 0.0% CPU. During a flood: 282 MiB at 282% CPU (app 147%, WebContent 135%). Idle after the flood: 239 MiB. |
+
+### What the checks found and fixed
+
+- **The PTY inherited the launcher's environment.** Started from a Claude Code shell,
+  zsh got `EDITOR=vi` and silently switched to vi keys (Option+B looked broken). It
+  also got Ghostty's `TERMINFO` and `CLAUDE_CODE_*` session variables, which
+  `claude attach` would act on in slice 2. The PTY now starts from an allowlist
+  (`HOME USER LOGNAME SHELL TMPDIR LANG SSH_AUTH_SOCK`) plus launchd's base `PATH`, so
+  a dev launch matches a Finder launch. **Rejected:** a denylist of known-bad
+  variables, which misses the next one.
+- **A page reload orphaned the shell.** Vite's full reload skips React cleanup, and
+  the reader thread then blocked in `wait()`. PTYs are now killed on
+  `PageLoadEvent::Started`. That's fine for one window; chapter 2's pool must scope
+  it per window.
+- **macOS PTY reads return about 1KB**, so a 20MB `cat` was about 20,000 Channel
+  messages and ran at 7MB/s. A sender thread now drains queued chunks into one
+  message of up to 256KB, which cut `cat` from 2.81s to 1.93s (dev build).
+- **What didn't help:** an 8MB in-flight window (1.84s), a release build (1.71s), and
+  1MB messages with 256KB acks (1.71s). With IPC messages no longer the limit, the
+  remaining cost is xterm.js parsing and rendering inside WebKit, spread over the app
+  process (custom-protocol fetches) and WebContent.
+
+### Still open from slice 1
+
+Items 1 and 7 miss their written bars. Item 1's bar is mis-specified. Item 7's `cat`
+bar may be beyond xterm.js in WKWebView. That's a question for the author before
+the go/no-go counts it as unfixable.
+
 ## 2026-09-25 — Planning MVP 1: what the fact-finding changed
 
 The five decisions below were settled in conversation. Planning the work turned up six

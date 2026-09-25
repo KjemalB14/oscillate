@@ -8,7 +8,7 @@
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::{Arc, Condvar, Mutex};
+use std::sync::{mpsc, Arc, Condvar, Mutex};
 use std::thread;
 
 use portable_pty::{native_pty_system, ChildKiller, CommandBuilder, MasterPty, PtySize};
@@ -16,6 +16,7 @@ use tauri::ipc::{Channel, InvokeResponseBody};
 use tauri::{AppHandle, Manager, State};
 
 const READ_CHUNK: usize = 64 * 1024;
+const MAX_MESSAGE: usize = 256 * 1024;
 const HIGH_WATER: usize = 1024 * 1024;
 
 /// The only variables a PTY inherits from the app. Everything else comes from the login
@@ -136,8 +137,29 @@ pub fn pty_spawn(
         Pty { writer, master: pair.master, killer, flow: flow.clone() },
     );
 
+    // macOS PTY reads return ~1KB, and each Channel message costs a round trip in the
+    // webview, so a 20MB `cat` ran at 7MB/s. The sender drains whatever the reader has
+    // queued into one message; a lone chunk (typing) still goes out at once.
+    let (tx, rx) = mpsc::channel::<Vec<u8>>();
+    let sender = thread::Builder::new()
+        .name(format!("pty-{id}-send"))
+        .spawn(move || {
+            while let Ok(mut batch) = rx.recv() {
+                while batch.len() < MAX_MESSAGE {
+                    match rx.try_recv() {
+                        Ok(more) => batch.extend_from_slice(&more),
+                        Err(_) => break,
+                    }
+                }
+                if on_data.send(InvokeResponseBody::Raw(batch)).is_err() {
+                    break;
+                }
+            }
+        })
+        .map_err(|e| e.to_string())?;
+
     thread::Builder::new()
-        .name(format!("pty-{id}"))
+        .name(format!("pty-{id}-read"))
         .spawn(move || {
             let mut buf = vec![0u8; READ_CHUNK];
             while flow.wait_for_room() {
@@ -145,12 +167,15 @@ pub fn pty_spawn(
                     Ok(0) | Err(_) => break,
                     Ok(n) => {
                         flow.sent(n);
-                        if on_data.send(InvokeResponseBody::Raw(buf[..n].to_vec())).is_err() {
+                        if tx.send(buf[..n].to_vec()).is_err() {
                             break;
                         }
                     }
                 }
             }
+            // All output reaches the webview before the exit notice.
+            drop(tx);
+            let _ = sender.join();
             let code = child.wait().ok().map(|status| status.exit_code());
             app.state::<Ptys>().live.lock().unwrap().remove(&id);
             let _ = on_exit.send(code);
