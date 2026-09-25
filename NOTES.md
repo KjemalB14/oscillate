@@ -1,9 +1,93 @@
-# Decisions
+# Oscillate — working notes
 
-Newest first. Written before the work, not after.
+Running log across sessions. `CLAUDE.md` is the authoritative *state*; `BACKLOG.md` is
+what is not built yet. This file is for everything else: what was tried, what was
+decided and why (including what was rejected), what a thing cost to find out, and
+workflows worth repeating.
 
-Oscillate is a macOS app for moving between parallel Claude Code sessions: a sidebar of
-every session grouped by repo, and the real Claude Code terminal UI for the one you pick.
+Newest entries at the top.
+
+---
+
+## 2026-09-25 — Planning MVP 1: what the fact-finding changed
+
+The five decisions below were settled in conversation. Planning the work turned up six
+facts, and two of them changed the scope.
+
+### Workspace trust is per folder and not inherited
+
+A throwaway `claude --bg` in a new git repo under `~/Github Repos`, which is itself
+trusted, failed before starting:
+
+```
+Workspace not trusted. Run `claude` in <dir> once and accept the trust prompt, then retry.
+```
+
+So every repo the app has never seen needs a one-time interactive trust step. The
+new-session flow (chapter 3) detects this error and opens a PTY running interactive
+`claude` in that repo, then retries `--bg` with the prompt it kept. **Oscillate never
+writes the trust flag in `~/.claude.json` itself.** That file belongs to Claude Code, and
+a hand-set flag would skip the dialog the flag exists to record.
+
+### Badges: PR link only, through one fail-soft adapter — supersedes part of the MVP 1 scope
+
+The MVP 1 entry below picks "branch + PR badges". It turns out neither has a supported
+source:
+
+- `claude agents --json` documents `id, cwd, kind, startedAt, state, pid, status,
+  waitingFor, sessionId, name`. There is no branch, worktree or PR field.
+- A background session's `cwd` stays the repo root after Claude moves it into a
+  worktree. `ade5c70a` opened clipped PRs #42–46 from a worktree and still reports
+  `cwd: .../clipped`. That makes `cwd` safe for grouping by repo, and useless for the
+  branch.
+- PR links exist only in `~/.claude/jobs/<id>/state.json` under
+  `children[] {id, href, kind: "pr"}`. The docs call that file "not a stable interface".
+
+**Chosen:** a clickable `#N` per session, read by one adapter (`pr_links.rs`). If
+anything fails to parse, there is no badge and one log line; nothing else is affected.
+Branch names and check-status colors move to MVP 2.
+**Rejected:** full badges from `gh pr view` + `git worktree list`, which add GitHub
+polling and a fuzzy worktree-to-session match. Deferring badges entirely, because the
+link alone is cheap and useful.
+
+### Every attach costs a recap
+
+The docs say that on attach, "Claude posts a short recap of what happened while you were
+away". That is a model call. Detaching and reattaching on every sidebar click would be
+noisy and spend usage, so **each opened session keeps its PTY alive** while the app runs.
+How many to keep (the LRU cap) is still open and needs chapter 1's per-PTY memory and CPU
+numbers.
+
+### Polling is cheap
+
+`claude agents --json --all` took 0.31s cold, then 0.13s and 0.13s. A 2s poll is fine.
+The `~/.claude/sessions` and `~/.claude/jobs` directories are watched only as a
+"re-poll now" trigger, never parsed.
+
+### Tauri e2e works on macOS, but not through `tauri-driver`
+
+Apple ships no WebDriver for WKWebView, so plain `tauri-driver` is Linux/Windows only.
+WebdriverIO's `@wdio/tauri-service` embeds a WebDriver server inside the app and supports
+macOS. That is the harness for chapter 2 onward, driven against a fake `claude` so tests
+never touch real sessions or quota.
+
+### Notification clicks need more than the official plugin
+
+`@tauri-apps/plugin-notification` (2.3.x) supports actions on mobile only (issue
+plugins-workspace #2150), so a desktop notification can't open the session it's about.
+Options for chapter 4's `/decide`: the community `tauri-plugin-notifications`, or a
+native `UNUserNotificationCenter` delegate through `objc2`.
+
+### How the work is broken up
+
+Borrowed from clipped and the vault: MVP 1 is four chapters, each opened by `/decide`
+writing a `PLAN-<chapter>.md` head with measurable acceptance criteria, and each cut into
+slices so a bug has one origin. Chapter 1 is a go/no-go on the terminal itself, because
+every other chapter assumes it holds. The roadmap is in `BACKLOG.md`.
+
+Sources: [agent view docs](https://code.claude.com/docs/en/agent-view),
+[Tauri WebDriver](https://v2.tauri.app/develop/tests/webdriver/),
+[notification onclick issue](https://github.com/tauri-apps/plugins-workspace/issues/2150).
 
 ## 2026-09-25 — What is in MVP 1?
 
