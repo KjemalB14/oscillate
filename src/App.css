@@ -1,0 +1,14 @@
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  background: #1e1e1e;
+  overflow: hidden;
+}
+
+.terminal-pane {
+  height: 100%;
+  padding: 4px 0 0 6px;
+  box-sizing: border-box;
+}

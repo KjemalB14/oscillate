@@ -116,3 +116,32 @@ go/no-go reopens the stack.
 
 ---
 <!-- agreed 2026-09-25. Implementation below. -->
+
+## Slice 1: implementation
+
+- `src-tauri/src/pty.rs` spawns `$SHELL` as a login shell in `$HOME` through
+  `portable-pty`. It sets `TERM=xterm-256color` and `COLORTERM=truecolor`, sets `LANG`
+  if it's missing, and strips the launching terminal's identity variables
+  (`TERM_PROGRAM`, `GHOSTTY_*`, `CLAUDECODE`, …). Output goes as raw bytes over a
+  `Channel`. The reader pauses at 1MB unacked and resumes on `pty_ack`, which gives the
+  child backpressure (item 7). App exit kills every PTY.
+- `src/TerminalPane.tsx` sets up xterm.js with WebGL (DOM fallback), fit, unicode11,
+  web-links and an OSC 8 `linkHandler`. Links open on Cmd+click through the opener
+  plugin. `macOptionIsMeta` is on, and the font is JetBrains Mono 14, matching the
+  author's Ghostty. Parsed bytes are acked in 64KB batches, and a pause flushes the
+  remainder.
+- Two tools repeat across slices:
+  - `.claude/scripts/bench-flood <label>` runs item 7 in whichever terminal it's
+    started in.
+  - `.claude/scripts/measure-footprint` runs item 8 against the running app.
+
+**Verified without hands** (dev build):
+- One login shell (`-zsh`) per window. The StrictMode double-mount kills its orphan.
+- The PTY is sized by fit (127×40, not 80×24).
+- Quitting the app ends the shell.
+- Idle footprint: 211 MiB total (app 40, WebContent 125, GPU 34, Networking 9,
+  zsh 3.5) at 1.8% CPU over 10s. That's a dev build: debug Rust, Vite HMR client.
+
+**Not yet verified:** items 1–7 need a person at the keyboard. This session had no
+Screen Recording or Accessibility permission, so it couldn't see or type into the
+window.

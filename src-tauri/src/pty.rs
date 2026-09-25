@@ -1,0 +1,195 @@
+//! PTYs owned by Rust, streamed to xterm.js over a Tauri `Channel`.
+//!
+//! Output is sent as raw bytes. The reader thread pauses once `HIGH_WATER` bytes are in
+//! flight to the webview, and resumes as xterm.js acks what it has parsed. That
+//! backpressure reaches the child through the PTY, so a flood can't pile up in the
+//! webview and Ctrl+C stays prompt (PLAN-terminal.md, item 7).
+
+use std::collections::HashMap;
+use std::io::{Read, Write};
+use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::{Arc, Condvar, Mutex};
+use std::thread;
+
+use portable_pty::{native_pty_system, ChildKiller, CommandBuilder, MasterPty, PtySize};
+use tauri::ipc::{Channel, InvokeResponseBody};
+use tauri::{AppHandle, Manager, State};
+
+const READ_CHUNK: usize = 64 * 1024;
+const HIGH_WATER: usize = 1024 * 1024;
+
+/// Variables that describe the terminal the app was launched from, not this one.
+const INHERITED_TERMINAL_VARS: &[&str] = &[
+    "TERM_PROGRAM",
+    "TERM_PROGRAM_VERSION",
+    "TERM_SESSION_ID",
+    "ITERM_SESSION_ID",
+    "GHOSTTY_BIN_DIR",
+    "GHOSTTY_RESOURCES_DIR",
+    "GHOSTTY_SHELL_FEATURES",
+    "CLAUDECODE",
+    "CLAUDE_CODE_ENTRYPOINT",
+];
+
+#[derive(Default)]
+pub struct Ptys {
+    next_id: AtomicU32,
+    live: Mutex<HashMap<u32, Pty>>,
+}
+
+struct Pty {
+    writer: Box<dyn Write + Send>,
+    master: Box<dyn MasterPty + Send>,
+    killer: Box<dyn ChildKiller + Send + Sync>,
+    flow: Arc<Flow>,
+}
+
+/// Bytes sent to the webview and not yet acked.
+#[derive(Default)]
+struct Flow {
+    state: Mutex<FlowState>,
+    cv: Condvar,
+}
+
+#[derive(Default)]
+struct FlowState {
+    in_flight: usize,
+    closed: bool,
+}
+
+impl Flow {
+    /// Blocks while too much is in flight. Returns false once the PTY is closed.
+    fn wait_for_room(&self) -> bool {
+        let mut s = self.state.lock().unwrap();
+        while s.in_flight >= HIGH_WATER && !s.closed {
+            s = self.cv.wait(s).unwrap();
+        }
+        !s.closed
+    }
+
+    fn sent(&self, n: usize) {
+        self.state.lock().unwrap().in_flight += n;
+    }
+
+    fn acked(&self, n: usize) {
+        let mut s = self.state.lock().unwrap();
+        s.in_flight = s.in_flight.saturating_sub(n);
+        self.cv.notify_all();
+    }
+
+    fn close(&self) {
+        self.state.lock().unwrap().closed = true;
+        self.cv.notify_all();
+    }
+}
+
+/// Spawns the user's login shell in `$HOME` and returns the PTY's id.
+#[tauri::command]
+pub fn pty_spawn(
+    app: AppHandle,
+    ptys: State<'_, Ptys>,
+    cols: u16,
+    rows: u16,
+    on_data: Channel<InvokeResponseBody>,
+    on_exit: Channel<Option<u32>>,
+) -> Result<u32, String> {
+    let pair = native_pty_system()
+        .openpty(PtySize { rows, cols, pixel_width: 0, pixel_height: 0 })
+        .map_err(|e| e.to_string())?;
+
+    // `new_default_prog` runs $SHELL as a login shell (argv[0] = "-zsh").
+    let mut cmd = CommandBuilder::new_default_prog();
+    if let Some(home) = std::env::var_os("HOME") {
+        cmd.cwd(home);
+    }
+    for var in INHERITED_TERMINAL_VARS {
+        cmd.env_remove(var);
+    }
+    cmd.env("TERM", "xterm-256color");
+    cmd.env("COLORTERM", "truecolor");
+    // A Finder-launched app has no LANG, and zsh then mis-measures wide characters.
+    if std::env::var_os("LANG").is_none() {
+        cmd.env("LANG", "en_US.UTF-8");
+    }
+
+    let mut child = pair.slave.spawn_command(cmd).map_err(|e| e.to_string())?;
+    // The master only reads EOF once every slave fd is closed.
+    drop(pair.slave);
+
+    let mut reader = pair.master.try_clone_reader().map_err(|e| e.to_string())?;
+    let writer = pair.master.take_writer().map_err(|e| e.to_string())?;
+    let killer = child.clone_killer();
+    let flow = Arc::new(Flow::default());
+
+    let id = ptys.next_id.fetch_add(1, Ordering::Relaxed);
+    ptys.live.lock().unwrap().insert(
+        id,
+        Pty { writer, master: pair.master, killer, flow: flow.clone() },
+    );
+
+    thread::Builder::new()
+        .name(format!("pty-{id}"))
+        .spawn(move || {
+            let mut buf = vec![0u8; READ_CHUNK];
+            while flow.wait_for_room() {
+                match reader.read(&mut buf) {
+                    Ok(0) | Err(_) => break,
+                    Ok(n) => {
+                        flow.sent(n);
+                        if on_data.send(InvokeResponseBody::Raw(buf[..n].to_vec())).is_err() {
+                            break;
+                        }
+                    }
+                }
+            }
+            let code = child.wait().ok().map(|status| status.exit_code());
+            app.state::<Ptys>().live.lock().unwrap().remove(&id);
+            let _ = on_exit.send(code);
+        })
+        .map_err(|e| e.to_string())?;
+
+    Ok(id)
+}
+
+#[tauri::command]
+pub fn pty_write(ptys: State<'_, Ptys>, id: u32, data: Vec<u8>) -> Result<(), String> {
+    let mut live = ptys.live.lock().unwrap();
+    let pty = live.get_mut(&id).ok_or("no such pty")?;
+    pty.writer.write_all(&data).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn pty_resize(ptys: State<'_, Ptys>, id: u32, cols: u16, rows: u16) -> Result<(), String> {
+    let live = ptys.live.lock().unwrap();
+    let pty = live.get(&id).ok_or("no such pty")?;
+    pty.master
+        .resize(PtySize { rows, cols, pixel_width: 0, pixel_height: 0 })
+        .map_err(|e| e.to_string())
+}
+
+/// xterm.js has parsed `bytes` more output; lets the reader continue.
+#[tauri::command]
+pub fn pty_ack(ptys: State<'_, Ptys>, id: u32, bytes: usize) {
+    if let Some(pty) = ptys.live.lock().unwrap().get(&id) {
+        pty.flow.acked(bytes);
+    }
+}
+
+#[tauri::command]
+pub fn pty_kill(ptys: State<'_, Ptys>, id: u32) {
+    if let Some(mut pty) = ptys.live.lock().unwrap().remove(&id) {
+        kill(&mut pty);
+    }
+}
+
+/// Called on app exit. For a shell this ends it; for `claude attach` it detaches.
+pub fn kill_all(ptys: &Ptys) {
+    for (_, mut pty) in ptys.live.lock().unwrap().drain() {
+        kill(&mut pty);
+    }
+}
+
+fn kill(pty: &mut Pty) {
+    pty.flow.close();
+    let _ = pty.killer.kill();
+}
