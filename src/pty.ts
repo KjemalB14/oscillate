@@ -9,7 +9,12 @@ export interface Pty {
   kill(): void;
 }
 
-export async function spawnShell(
+/** The session to attach to, passed in by hand (`OSCILLATE_ATTACH`); null runs a shell. */
+export const initialSession = () => invoke<string | null>("initial_session");
+
+/** Spawns `claude attach <session>`, or the login shell when `session` is null. */
+export async function spawnPty(
+  session: string | null,
   cols: number,
   rows: number,
   onData: (bytes: Uint8Array) => void,
@@ -20,7 +25,7 @@ export async function spawnShell(
   const exit = new Channel<number | null>();
   exit.onmessage = onExit;
 
-  const id = await invoke<number>("pty_spawn", { cols, rows, onData: data, onExit: exit });
+  const id = await invoke<number>("pty_spawn", { session, cols, rows, onData: data, onExit: exit });
   const log = (e: unknown) => console.error(`pty ${id}:`, e);
   return {
     id,

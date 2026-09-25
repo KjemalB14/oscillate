@@ -1,7 +1,15 @@
+mod claude;
 mod pty;
 
 use tauri::webview::PageLoadEvent;
 use tauri::{Manager, RunEvent};
+
+/// The session the pane attaches to, passed in by hand until chapter 2's sidebar:
+/// `OSCILLATE_ATTACH=<id> npm run tauri dev`. Unset, the pane runs a login shell.
+#[tauri::command]
+fn initial_session() -> Option<String> {
+    std::env::var("OSCILLATE_ATTACH").ok().filter(|id| !id.is_empty())
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -15,6 +23,7 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            initial_session,
             pty::pty_spawn,
             pty::pty_write,
             pty::pty_resize,

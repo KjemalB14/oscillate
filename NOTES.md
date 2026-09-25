@@ -9,6 +9,119 @@ Newest entries at the top.
 
 ---
 
+## 2026-09-25 — Chapter 1 closed: go
+
+Slice 2 held against the amended bars, with no unfixable item, so **the stack stays**
+and chapter 2 starts on it. `PLAN-terminal.md` was deleted with this entry. Its head
+(the question, what was chosen and rejected, the acceptance criteria and the go/no-go)
+is in git at the commit that recorded the verdict: `git log --all -- PLAN-terminal.md`.
+The decisions that outlive the chapter:
+
+- **Frontend: React + TypeScript on Vite.** It pays off in chapter 2's sidebar diffs
+  and chapter 3's prompt box. **Rejected:** vanilla TS (a hand-written render loop),
+  Svelte 5 and Solid (fewer Tauri + xterm examples to borrow from).
+- **The baseline is Ghostty**, what Claude Code runs in today. **Rejected:** iTerm
+  (not installed) and Terminal.app (too low a bar).
+- **A hand-written PTY bridge over `portable-pty`**: raw bytes out through a Tauri
+  `Channel`, writes and resizes through `invoke`, with Rust owning the lifecycle so the
+  pool and invariant 3 can be enforced there. **Rejected:** `tauri-plugin-pty` (it
+  hides the lifecycle) and `emit` events (JSON per chunk).
+- **xterm.js** with WebGL (DOM fallback), fit, unicode-graphemes and web-links, plus
+  OSC 8 through the opener plugin, and **the kitty keyboard protocol** (see slice 2
+  below).
+
+## 2026-09-25 — Chapter 1, slice 2: `claude attach` verified in the running app
+
+Driven by Claude against a throwaway background session. It was started from a clean
+environment with `claude --bg --permission-mode plan` in `~/Github Repos` (trusted),
+and `claude rm`'d afterwards. The release build was attached with
+`OSCILLATE_ATTACH=<id>`. Ghostty was attached to the same session at the same 80×42 for
+the comparisons. The tools were `drive-window` (a `scroll` op was added for item 11),
+`measure-footprint`, and a fake `claude` that logs the raw bytes it reads, for input
+questions.
+
+| # | Item | Result |
+|---|------|--------|
+| 9 | Detach | **Ctrl+Z passes**: `[detached from 6b99bf25]`, exit 0, and the session keeps running. **← does not detach.** `claude attach` execs `claude agents` (agent view) in place, in the PTY's cwd. That was `$HOME`, which then asked for workspace trust. "No, exit" left cleanly and trust stayed false. **Amended, below.** |
+| 10 | Ctrl+C | **Pass**: one Ctrl+C gives "Interrupted · What should Claude do instead?" and the pane stays attached. Checked again after the keyboard change. |
+| 11 | Wheel | **Pass**: scrolls Claude's fullscreen view both ways, with "Jump to bottom" shown. |
+| 12 | 2–6 in Claude | **Pass.** (2) Option+B/F/Backspace. (3) Cmd+C with no selection is a no-op, and multi-line paste is intact. Claude's view owns the mouse, so drag and double-click select and copy on release, as in Ghostty. (4) Cmd+click on `https://example.com` opened the browser. (5) 👍🏽, 日本 and é align, and Claude's 24-bit colors render. (6) With Oscillate as the only client, 127×40 → 121×40 → 73×26 reflows cleanly. |
+| 13 | Footprint | Idle attached (release): **220–224 MiB** total, of which `claude attach` is 63–65, WebContent 101–104, app 25–29 and GPU 22–24, at **2.7–3.1% CPU**. Mid-stream: **240 MiB at 5.8%**. For comparison, an idle shell pane was 156 MiB at 0.0%. |
+| 14 | Streaming | **Pass**: a 35s turn with three Read calls and about 500 words. 200 paired captures of both windows were taken. The sampled pairs show the same frame at the same moment (same spinner timer and token count), and the final screens match. |
+
+### What the checks found and fixed
+
+- **`$SHELL -lc 'command -v claude'` finds nothing on this machine.** nvm is set up in
+  `.zshrc`, which only an interactive shell reads. The resolver runs `-lic` (0.96s)
+  and takes the last two stdout lines. **Rejected:** `-lc` as planned (it fails here);
+  guessing install dirs (breaks on the next installer).
+- **`claude attach` can start the supervisor daemon**, which hands its PATH to every
+  background session. The resolver therefore also returns the login shell's PATH, and
+  attach runs with it. The session started here had the full nvm/Homebrew PATH. Under
+  `OSCILLATE_CLAUDE_BIN`, the base PATH is used, so a dev launch can't leak npm's.
+- **Invariant 3 at the source.** StrictMode's mount → unmount → mount would have
+  spawned two attaches, so the spawn is deferred one tick and the dead mount never
+  starts one. Rust also refuses a second PTY for a live session, with the check and the
+  insert under one lock.
+- **Esc Esc and Ctrl+C on an idle prompt didn't clear Claude's input** in Oscillate.
+  Both worked in Ghostty. The bytes were right (the keylogger saw `\x1b` and `\x03`).
+  The difference is that Ghostty speaks the kitty keyboard protocol, which Claude's
+  TUI switches to when offered. That makes Esc unambiguous. xterm.js 6.0 has no such
+  support. The fix was **`@xterm/xterm` 6.1.0-beta.304**, with its addon betas pinned
+  exactly, and `vtExtensions: { kittyKeyboard: true }`. After it, Esc arrives as
+  `CSI 27u` and Ctrl+C as `CSI 99;5u`. Items 2, 3 and 10 were re-checked on it.
+  - **Rejected:** hand-writing a kitty encoder on 6.0, which reimplements what
+    upstream now ships.
+  - **Rejected:** staying on 6.0. Esc Esc is daily muscle memory.
+  - **The cost:** a beta dependency. Move to 6.1.0 stable when it ships (BACKLOG).
+- **Dropped mouse releases were a false alarm.** One run lost every mouse-up. Another
+  session's e2e windows were popping over Oscillate at the time, and neither 6.0 nor
+  the beta reproduced it.
+- The pane hides the cursor once its process exits.
+
+### What `claude attach` means for Oscillate
+
+- **The TUI is rendered by the daemon's `bg-pty-host`; attach is a byte pipe.** Two
+  clients at different sizes share one render, and the other one shows leftover rules
+  and unused rows. Side-by-side checks need equal sizes. Later, a session also open in
+  the author's own terminal at another size will distort Oscillate's pane, which isn't
+  an Oscillate bug.
+- **Every attach posted a recap** (four times here), which confirms keeping each
+  opened session's PTY alive.
+- **← swaps the pane's process for agent view**, where picking another session attaches
+  this same PTY to it. Oscillate's record of which session the PTY holds would then be
+  wrong, and invariant 3 could break. Chapter 2 slice 3 has to handle this (BACKLOG).
+- A stray `^[[I` can print after detach. It's a focus-in report racing Claude's exit
+  while focus reporting is still on. Cosmetic.
+
+### Amended: item 9
+
+**Ctrl+Z detaches; ← opens agent view inside the pane.** That is Claude's documented
+behavior (`claude attach --help`: "← returns to agent view"), and the terminal passed
+the key through correctly. **Rejected:** counting ← as an unfixable item. It isn't a
+terminal fault, and it would spend the go/no-go's tolerance on Claude's key map.
+
+### How to repeat the side-by-side (item 14)
+
+- Launch Ghostty's binary directly with `--window-width/height`,
+  `--window-position-x/y` and `--background-opacity=1`, from `env -i` with the
+  allowlisted variables. Then type `claude attach <id>` into its shell.
+  - `open -na Ghostty.app --args … -e` opened extra tabs.
+  - `-e` from the binary brings up an "Allow Ghostty to execute…" dialog.
+- **Stage Manager must be off** or the other window is a thumbnail:
+  `defaults write com.apple.WindowManager GloballyEnabled -bool false`, and back to
+  `true` after.
+- Match the two clients' `stty size` before comparing.
+
+### An incident not to repeat
+
+The `open -na Ghostty.app` launch opened a tab running plain `claude` in nvm's `bin`,
+at the workspace-trust prompt. That process was killed rather than answered. Afterwards
+`~/.claude.json` had `~/.nvm` marked trusted, with a start time and duration that
+matched the killed process. The entry was removed with the author's OK. The cause isn't
+verified, but the rule follows anyway: **answer a trust prompt with "No, exit"; never
+kill the process sitting at it.**
+
 ## 2026-09-25 — Chapter 1, slice 1: verified in the running app
 
 Driven by Claude through `osascript` keystrokes, CGEvent clicks and `screencapture`,

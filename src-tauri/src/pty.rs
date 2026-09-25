@@ -6,6 +6,7 @@
 //! webview and Ctrl+C stays prompt (PLAN-terminal.md, item 7).
 
 use std::collections::HashMap;
+use std::ffi::OsString;
 use std::io::{Read, Write};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{mpsc, Arc, Condvar, Mutex};
@@ -14,6 +15,8 @@ use std::thread;
 use portable_pty::{native_pty_system, ChildKiller, CommandBuilder, MasterPty, PtySize};
 use tauri::ipc::{Channel, InvokeResponseBody};
 use tauri::{AppHandle, Manager, State};
+
+use crate::claude::claude_bin;
 
 const READ_CHUNK: usize = 64 * 1024;
 const MAX_MESSAGE: usize = 256 * 1024;
@@ -35,7 +38,21 @@ const INHERITED_VARS: &[&str] = &[
 ];
 
 /// launchd's default PATH; the login shell's profile (path_helper, nvm, ...) builds on it.
-const BASE_PATH: &str = "/usr/bin:/bin:/usr/sbin:/sbin";
+pub const BASE_PATH: &str = "/usr/bin:/bin:/usr/sbin:/sbin";
+
+/// The environment every child starts from: the allowlist plus the base PATH.
+pub fn clean_env() -> Vec<(OsString, OsString)> {
+    let mut env: Vec<(OsString, OsString)> = INHERITED_VARS
+        .iter()
+        .filter_map(|var| Some((var.into(), std::env::var_os(var)?)))
+        .collect();
+    env.push(("PATH".into(), BASE_PATH.into()));
+    // A Finder-launched app has no LANG, and zsh then mis-measures wide characters.
+    if std::env::var_os("LANG").is_none() {
+        env.push(("LANG".into(), "en_US.UTF-8".into()));
+    }
+    env
+}
 
 #[derive(Default)]
 pub struct Ptys {
@@ -44,6 +61,8 @@ pub struct Ptys {
 }
 
 struct Pty {
+    /// The session this PTY runs `claude attach` for; `None` for a shell.
+    session: Option<String>,
     writer: Box<dyn Write + Send>,
     master: Box<dyn MasterPty + Send>,
     killer: Box<dyn ChildKiller + Send + Sync>,
@@ -89,39 +108,59 @@ impl Flow {
     }
 }
 
-/// Spawns the user's login shell in `$HOME` and returns the PTY's id.
-#[tauri::command]
+/// Spawns `claude attach <session>`, or the user's login shell in `$HOME` when there is
+/// no session, and returns the PTY's id.
+#[tauri::command(async)]
 pub fn pty_spawn(
     app: AppHandle,
     ptys: State<'_, Ptys>,
+    session: Option<String>,
     cols: u16,
     rows: u16,
     on_data: Channel<InvokeResponseBody>,
     on_exit: Channel<Option<u32>>,
 ) -> Result<u32, String> {
+    let mut cmd = match &session {
+        Some(session) => {
+            if session.is_empty() || !session.chars().all(|c| c.is_ascii_alphanumeric()) {
+                return Err(format!("not a session id: {session:?}"));
+            }
+            let claude = claude_bin()?;
+            let mut cmd = CommandBuilder::new(claude.path);
+            cmd.args(["attach", session]);
+            cmd.env_clear();
+            for (key, value) in clean_env() {
+                cmd.env(key, value);
+            }
+            cmd.env("PATH", claude.path_var);
+            cmd
+        }
+        None => {
+            // `new_default_prog` runs $SHELL as a login shell (argv[0] = "-zsh").
+            let mut cmd = CommandBuilder::new_default_prog();
+            cmd.env_clear();
+            for (key, value) in clean_env() {
+                cmd.env(key, value);
+            }
+            cmd
+        }
+    };
+    if let Some(home) = std::env::var_os("HOME") {
+        cmd.cwd(home);
+    }
+    cmd.env("TERM", "xterm-256color");
+    cmd.env("COLORTERM", "truecolor");
+
     let pair = native_pty_system()
         .openpty(PtySize { rows, cols, pixel_width: 0, pixel_height: 0 })
         .map_err(|e| e.to_string())?;
 
-    // `new_default_prog` runs $SHELL as a login shell (argv[0] = "-zsh").
-    let mut cmd = CommandBuilder::new_default_prog();
-    if let Some(home) = std::env::var_os("HOME") {
-        cmd.cwd(home);
+    // Invariant 3: the check and the insert happen under one lock, so two spawns for the
+    // same session can't both get through.
+    let mut live = ptys.live.lock().unwrap();
+    if session.is_some() && live.values().any(|pty| pty.session == session) {
+        return Err(format!("already attached to {}", session.unwrap()));
     }
-    cmd.env_clear();
-    for var in INHERITED_VARS {
-        if let Some(value) = std::env::var_os(var) {
-            cmd.env(var, value);
-        }
-    }
-    cmd.env("PATH", BASE_PATH);
-    cmd.env("TERM", "xterm-256color");
-    cmd.env("COLORTERM", "truecolor");
-    // A Finder-launched app has no LANG, and zsh then mis-measures wide characters.
-    if std::env::var_os("LANG").is_none() {
-        cmd.env("LANG", "en_US.UTF-8");
-    }
-
     let mut child = pair.slave.spawn_command(cmd).map_err(|e| e.to_string())?;
     // The master only reads EOF once every slave fd is closed.
     drop(pair.slave);
@@ -132,10 +171,8 @@ pub fn pty_spawn(
     let flow = Arc::new(Flow::default());
 
     let id = ptys.next_id.fetch_add(1, Ordering::Relaxed);
-    ptys.live.lock().unwrap().insert(
-        id,
-        Pty { writer, master: pair.master, killer, flow: flow.clone() },
-    );
+    live.insert(id, Pty { session, writer, master: pair.master, killer, flow: flow.clone() });
+    drop(live);
 
     // macOS PTY reads return ~1KB, and each Channel message costs a round trip in the
     // webview, so a 20MB `cat` ran at 7MB/s. The sender drains whatever the reader has
