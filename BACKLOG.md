@@ -17,13 +17,14 @@ derailing the branch.
 ## Next — MVP 1
 
 The roadmap was agreed 2026-09-25; the reasoning is in `NOTES.md` → *Planning MVP 1*.
-Four chapters, in dependency order. The frontend defaults to React + TypeScript (Vite),
-and chapter 1's `/decide` can overturn that.
+Four chapters, in dependency order. The frontend is React + TypeScript (Vite), confirmed
+by chapter 1's `/decide` (`PLAN-terminal.md`).
 
 ### Chapter 1 — The terminal holds (go/no-go)
 
 It goes first because it is the assumption everything else rests on: if the embedded
-terminal feels worse than iTerm, nothing else matters.
+terminal feels worse than Ghostty (the baseline; iTerm isn't installed), nothing else
+matters. Acceptance criteria are in `PLAN-terminal.md`.
 
 - [ ] **1. Tauri shell + xterm.js + a PTY running the login shell.** No Claude involved,
   so a terminal-plumbing bug has one origin.

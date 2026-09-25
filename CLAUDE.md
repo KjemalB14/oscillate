@@ -50,8 +50,9 @@ handoff points into these files; it never copies their reasoning.
 ## Current state
 
 **No code yet.** The design and the MVP 1 roadmap were agreed on 2026-09-25 and are
-recorded in `NOTES.md` and `BACKLOG.md`. **Next: chapter 1, *The terminal holds*.** Open
-it with `/decide`.
+recorded in `NOTES.md` and `BACKLOG.md`. **Chapter 1, *The terminal holds*, is open:**
+`PLAN-terminal.md` has the agreed head and acceptance criteria. The frontend is React +
+TypeScript (Vite), and the baseline is Ghostty.
 
 ## The invariants
 
