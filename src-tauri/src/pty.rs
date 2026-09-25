@@ -18,18 +18,23 @@ use tauri::{AppHandle, Manager, State};
 const READ_CHUNK: usize = 64 * 1024;
 const HIGH_WATER: usize = 1024 * 1024;
 
-/// Variables that describe the terminal the app was launched from, not this one.
-const INHERITED_TERMINAL_VARS: &[&str] = &[
-    "TERM_PROGRAM",
-    "TERM_PROGRAM_VERSION",
-    "TERM_SESSION_ID",
-    "ITERM_SESSION_ID",
-    "GHOSTTY_BIN_DIR",
-    "GHOSTTY_RESOURCES_DIR",
-    "GHOSTTY_SHELL_FEATURES",
-    "CLAUDECODE",
-    "CLAUDE_CODE_ENTRYPOINT",
+/// The only variables a PTY inherits from the app. Everything else comes from the login
+/// shell's own profile, exactly as when the app is launched from Finder. Inheriting a dev
+/// launcher's env leaked `EDITOR=vi` (zsh silently switches to vi keys), Ghostty's
+/// `TERMINFO`, and `CLAUDE_CODE_*` session variables that `claude attach` would act on.
+const INHERITED_VARS: &[&str] = &[
+    "HOME",
+    "USER",
+    "LOGNAME",
+    "SHELL",
+    "TMPDIR",
+    "LANG",
+    "SSH_AUTH_SOCK",
+    "__CF_USER_TEXT_ENCODING",
 ];
+
+/// launchd's default PATH; the login shell's profile (path_helper, nvm, ...) builds on it.
+const BASE_PATH: &str = "/usr/bin:/bin:/usr/sbin:/sbin";
 
 #[derive(Default)]
 pub struct Ptys {
@@ -102,9 +107,13 @@ pub fn pty_spawn(
     if let Some(home) = std::env::var_os("HOME") {
         cmd.cwd(home);
     }
-    for var in INHERITED_TERMINAL_VARS {
-        cmd.env_remove(var);
+    cmd.env_clear();
+    for var in INHERITED_VARS {
+        if let Some(value) = std::env::var_os(var) {
+            cmd.env(var, value);
+        }
     }
+    cmd.env("PATH", BASE_PATH);
     cmd.env("TERM", "xterm-256color");
     cmd.env("COLORTERM", "truecolor");
     // A Finder-launched app has no LANG, and zsh then mis-measures wide characters.

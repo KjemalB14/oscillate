@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
-import { Unicode11Addon } from "@xterm/addon-unicode11";
+import { UnicodeGraphemesAddon } from "@xterm/addon-unicode-graphemes";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -21,7 +21,7 @@ export function TerminalPane() {
 
   useEffect(() => {
     const term = new Terminal({
-      allowProposedApi: true, // unicode11
+      allowProposedApi: true, // unicode-graphemes
       fontFamily: '"JetBrains Mono", ui-monospace, Menlo, monospace',
       fontSize: 14,
       cursorBlink: true,
@@ -33,9 +33,8 @@ export function TerminalPane() {
     });
     const fit = new FitAddon();
     term.loadAddon(fit);
-    const unicode = new Unicode11Addon();
-    term.loadAddon(unicode);
-    term.unicode.activeVersion = "11";
+    // Grapheme clusters (👍🏽, 👨‍👩‍👧) take one glyph, as in Ghostty; unicode11 split them.
+    term.loadAddon(new UnicodeGraphemesAddon());
     term.loadAddon(new WebLinksAddon(openOnCmdClick));
 
     term.open(host.current!);
