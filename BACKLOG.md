@@ -18,37 +18,18 @@ derailing the branch.
 
 The roadmap was agreed 2026-09-25; the reasoning is in `NOTES.md` → *Planning MVP 1*.
 Four chapters, in dependency order. The frontend is React + TypeScript (Vite), confirmed
-by chapter 1's `/decide` (`PLAN-terminal.md`).
+by chapter 1 (`NOTES.md` → *Chapter 1 closed: go*).
 
-### Chapter 1 — The terminal holds (go/no-go)
+### Chapter 1 — The terminal holds (go/no-go): closed 2026-09-25, **go**
 
-It goes first because it is the assumption everything else rests on: if the embedded
-terminal feels worse than Ghostty (the baseline; iTerm isn't installed), nothing else
-matters. Acceptance criteria are in `PLAN-terminal.md`.
-
-- [x] **1. Tauri shell + xterm.js + a PTY running the login shell.** No Claude involved,
-  so a terminal-plumbing bug has one origin.
-- [ ] **2. The pane runs `claude attach <id>`** for an id passed in by hand. Acceptance
-  is checked by hand and recorded in `NOTES.md` under *Verified in the running app*:
-  - ← on an empty prompt and Ctrl+Z both detach.
-  - Ctrl+C interrupts once.
-  - Option acts as Meta.
-  - The mouse wheel scrolls the fullscreen view.
-  - Cmd+C / Cmd+V copy and paste.
-  - OSC 8 links open in the browser.
-  - Truecolor, emoji and wide characters render correctly.
-  - Resizing reflows cleanly.
-  - Memory and CPU per attached PTY are measured.
-  - A long streaming turn keeps up with Ghostty side by side (replaces the bulk-`cat`
-    throughput gate; see `NOTES.md`).
-
-  **Closes with a go/no-go:** if two or more items can't be fixed, reopen the stack
-  decision (a native Rust renderer) before chapter 2.
+Both slices shipped (below). The results and the verdict are in `NOTES.md`.
 
 ### Chapter 2 — Every session, one click away (ends in /Applications)
 
 - [ ] **1. The session model, Rust only, no UI.**
-  - The `claude` resolver: login shell, cached, with an `OSCILLATE_CLAUDE_BIN` override.
+  - The `claude` resolver: `claude_bin()` exists (`claude.rs`, `-lic`, returns the
+    login PATH too). Add caching, since one call costs ~1s, and tests against a fake
+    `claude`.
   - A serialized 2s poll of `claude agents --json --all`.
   - A file-watch on `~/.claude/sessions` and `~/.claude/jobs`, used only as a re-poll
     trigger.
@@ -69,6 +50,12 @@ matters. Acceptance criteria are in `PLAN-terminal.md`.
   - A session that vanishes from the list closes its PTY.
   - Quitting the app detaches all PTYs and leaves the sessions running.
   - Settle the LRU cap from chapter 1's numbers.
+  - **← in a pane opens agent view in place** (`NOTES.md`, chapter 1 slice 2). From
+    there the same PTY can attach a different session, which breaks invariant 3. Run
+    attach in the session's own `cwd`, so agent view never asks for trust in `$HOME`,
+    and treat the child's exec into `claude agents` as a detach.
+  - On PTY exit, reset xterm's input modes (mouse, focus, kitty flags) so a dead pane
+    sends nothing.
 - [ ] **4. Ship to the Dock.**
   - `tauri build`, ad-hoc signing, `/Applications`, an icon.
   - Verify the resolver finds `claude` when the app is launched from Finder.
@@ -110,16 +97,25 @@ matters. Acceptance criteria are in `PLAN-terminal.md`.
 - [ ] **Composer box in the thread view** for plain replies. Anything that opens a
   dialog still brings the terminal forward.
 - [ ] **Keyboard switching.** Cmd+1–9, Cmd+N, Cmd+[ / ].
+- [ ] **Move `@xterm/*` from the 6.1.0 betas to 6.1.0 stable** once it ships. The
+  betas are pinned exactly for the kitty keyboard protocol (`NOTES.md`, chapter 1
+  slice 2).
 - [ ] **Branch name and PR status colors** on the badge, once the thread view is reading
   transcripts anyway.
 
 ## Undecided — needs a decision before it's work
 
-- [ ] **The LRU cap on live PTYs.** Decide from chapter 1's per-PTY measurements.
+- [ ] **The LRU cap on live PTYs.** Decide from chapter 1's per-PTY measurements. One
+  attached pane measured 220–224 MiB idle and 240 MiB mid-stream, against 156 MiB for
+  a shell pane. `claude attach` itself is ~65 MiB, and it idles at ~3% CPU. The cost of
+  each extra xterm instance in WebContent is not measured yet.
 - [ ] **Whether to port clipped's e2e discipline**: the `e2e-author` agent, the spec
   lock, and the push gate. Decide when the harness arrives in chapter 2, slice 2.
 
 ## Shipped
 
+- 2026-09-25: chapter 1, slice 2: the pane runs `claude attach <id>` through the
+  `claude_bin()` resolver, with the kitty keyboard protocol on. Items 9–14 verified;
+  **chapter 1 closes as a go**.
 - 2026-09-25: chapter 1, slice 1: a Tauri window with xterm.js over a `portable-pty`
   login shell. Verified in the running app; results are in `NOTES.md`.

@@ -49,13 +49,18 @@ handoff points into these files; it never copies their reasoning.
 
 ## Current state
 
-**Chapter 1, *The terminal holds*, is open, and slice 1 is done.** A Tauri 2 window runs
-xterm.js over a `portable-pty` login shell (`src-tauri/src/pty.rs`,
-`src/TerminalPane.tsx`), verified against Ghostty. `PLAN-terminal.md` has the agreed
-head, the acceptance criteria (items 1 and 7 amended) and the slice 2 to-do. **Next:
-slice 2, the pane runs `claude attach <id>`.**
+**Chapter 1, *The terminal holds*, is closed: go.** A Tauri 2 window runs xterm.js over
+`portable-pty` (`src-tauri/src/pty.rs`, `src/TerminalPane.tsx`). Its one pane attaches
+to a background session through the `claude_bin()` resolver (`src-tauri/src/claude.rs`),
+and all 14 acceptance items were verified against Ghostty. The verdict and what it
+didn't prove are in `NOTES.md` → *Chapter 1 closed: go*. **Next: open chapter 2 with
+`/decide`** (`BACKLOG.md`).
 
 - Dev: `npm run tauri dev`. Release binary: `npx tauri build --no-bundle`.
+- `OSCILLATE_ATTACH=<id>` makes the pane run `claude attach <id>`; without it, the pane
+  runs a login shell.
+- `@xterm/*` is pinned to 6.1.0 betas for the kitty keyboard protocol. Don't
+  downgrade to 6.0: Esc Esc stops working in Claude.
 - Rust lives in `~/.cargo/bin`.
 - Claude can drive the window itself with `~/.claude/scripts/drive-window` (`--help`).
 

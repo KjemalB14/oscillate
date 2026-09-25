@@ -107,8 +107,9 @@ machine and the same shell.
 
 ### Slice 2: `claude attach <id>`
 
-9. ← on an empty prompt detaches, and so does Ctrl+Z. The PTY exits and the pane says
-   so.
+9. Ctrl+Z detaches: the PTY exits and the pane says so. *(Amended 2026-09-25: ← was
+   meant to detach too, but `claude attach` maps it to agent view, which runs inside
+   the pane. That's Claude's key map, not a terminal fault. Chapter 2 handles it.)*
 10. Ctrl+C interrupts a running turn once. It does not double-fire or detach.
 11. The mouse wheel scrolls Claude's fullscreen view.
 12. Items 2–6 hold again inside Claude's TUI.
@@ -148,13 +149,27 @@ bars.
 **Not proved by slice 1:** anything involving Claude (items 9–14), and whether
 PTY-kill-on-reload is right once there are several panes (chapter 2's pool).
 
-## Slice 2: to do
+## Slice 2: done (2026-09-25)
 
-- A minimal `claude_bin()` resolver: `OSCILLATE_CLAUDE_BIN`, else
-  `$SHELL -lc 'command -v claude'`.
-- The pane runs `claude attach <id>` with the id passed in by hand (env var or CLI
-  argument, whichever is simpler).
-- The PTY environment allowlist already keeps `CLAUDE_CODE_*` out of `claude attach`.
-  Keep it that way.
-- Check items 9–14, re-run 2–6 inside Claude's TUI, and record the results in
-  `NOTES.md`.
+Every item was checked in the running app; the results are in `NOTES.md` →
+*Chapter 1, slice 2*. Items 9–14 pass, item 9 against the amended bar.
+
+- `src-tauri/src/claude.rs`: `claude_bin()` honors `OSCILLATE_CLAUDE_BIN`. Otherwise it
+  asks `$SHELL -lic`, because nvm lives in `.zshrc`, and returns both the path and the
+  login PATH that attach runs with.
+- `pty_spawn` takes an optional session and runs `claude attach <id>`. It refuses a
+  second PTY for a live session (invariant 3). The id comes from `OSCILLATE_ATTACH`
+  through `initial_session`.
+- xterm.js is on 6.1.0-beta.304 with the kitty keyboard protocol on, so Esc Esc and
+  Ctrl+C clear Claude's input as they do in Ghostty.
+
+## Go/no-go: **go** (2026-09-25)
+
+Items 1–14 hold. Items 1, 7 and 9 were amended, and none is unfixable. The stack is
+not reopened, and chapter 2 builds on it.
+
+**Not proved by chapter 1:**
+- Several panes at once: the pool, the LRU cap, and PTY-kill-on-reload scoped per
+  window.
+- A Finder-launched app (chapter 2 slice 4).
+- Claude's ← agent view inside a pooled pane.
