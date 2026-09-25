@@ -47,11 +47,24 @@ against a separate Ghostty instance at the same 127×40. Items are numbered as i
   remaining cost is xterm.js parsing and rendering inside WebKit, spread over the app
   process (custom-protocol fetches) and WebContent.
 
-### Still open from slice 1
+### Two acceptance bars amended
 
-Items 1 and 7 miss their written bars. Item 1's bar is mis-specified. Item 7's `cat`
-bar may be beyond xterm.js in WKWebView. That's a question for the author before
-the go/no-go counts it as unfixable.
+- **Item 7: bulk `cat` is recorded, not gated.** Oscillate's panes run Claude's TUI,
+  which streams a few hundred bytes at a time and redraws about 10–20KB per screen,
+  far below the roughly 12MB/s ceiling. Claude Code also collapses long tool output.
+  Responsiveness (Ctrl+C in about 20ms, typing, `seq`) passed. A new item 14 checks
+  the real workload: a long streaming turn, side by side with Ghostty.
+  - **Rejected:** keeping the 3× bar and counting it as the one allowed unfixable
+    item, which would spend the go/no-go's tolerance on a workload Oscillate doesn't
+    have.
+  - **Rejected:** measuring raw xterm.js speed first. It could only confirm the
+    ceiling, not change the decision.
+- **Item 1: Oscillate may add at most 0.75s from window to shell** (0.59s measured).
+  "Prompt within 1s" was unmeetable: the author's login zsh takes 1.37s in any
+  terminal.
+  - **Rejected:** spawning the shell from Rust before the page loads. That saves about
+    0.5s of cold start, but chapter 2 attaches on click, so cold start matters little.
+  - **Rejected:** dropping the startup bar entirely.
 
 ## 2026-09-25 — Planning MVP 1: what the fact-finding changed
 

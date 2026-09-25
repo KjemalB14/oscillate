@@ -26,7 +26,7 @@ It goes first because it is the assumption everything else rests on: if the embe
 terminal feels worse than Ghostty (the baseline; iTerm isn't installed), nothing else
 matters. Acceptance criteria are in `PLAN-terminal.md`.
 
-- [ ] **1. Tauri shell + xterm.js + a PTY running the login shell.** No Claude involved,
+- [x] **1. Tauri shell + xterm.js + a PTY running the login shell.** No Claude involved,
   so a terminal-plumbing bug has one origin.
 - [ ] **2. The pane runs `claude attach <id>`** for an id passed in by hand. Acceptance
   is checked by hand and recorded in `NOTES.md` under *Verified in the running app*:
@@ -39,6 +39,8 @@ matters. Acceptance criteria are in `PLAN-terminal.md`.
   - Truecolor, emoji and wide characters render correctly.
   - Resizing reflows cleanly.
   - Memory and CPU per attached PTY are measured.
+  - A long streaming turn keeps up with Ghostty side by side (replaces the bulk-`cat`
+    throughput gate; see `NOTES.md`).
 
   **Closes with a go/no-go:** if two or more items can't be fixed, reopen the stack
   decision (a native Rust renderer) before chapter 2.
@@ -119,4 +121,5 @@ matters. Acceptance criteria are in `PLAN-terminal.md`.
 
 ## Shipped
 
-Nothing yet.
+- 2026-09-25: chapter 1, slice 1: a Tauri window with xterm.js over a `portable-pty`
+  login shell. Verified in the running app; results are in `NOTES.md`.

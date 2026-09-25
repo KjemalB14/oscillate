@@ -49,10 +49,15 @@ handoff points into these files; it never copies their reasoning.
 
 ## Current state
 
-**No code yet.** The design and the MVP 1 roadmap were agreed on 2026-09-25 and are
-recorded in `NOTES.md` and `BACKLOG.md`. **Chapter 1, *The terminal holds*, is open:**
-`PLAN-terminal.md` has the agreed head and acceptance criteria. The frontend is React +
-TypeScript (Vite), and the baseline is Ghostty.
+**Chapter 1, *The terminal holds*, is open, and slice 1 is done.** A Tauri 2 window runs
+xterm.js over a `portable-pty` login shell (`src-tauri/src/pty.rs`,
+`src/TerminalPane.tsx`), verified against Ghostty. `PLAN-terminal.md` has the agreed
+head, the acceptance criteria (items 1 and 7 amended) and the slice 2 to-do. **Next:
+slice 2, the pane runs `claude attach <id>`.**
+
+- Dev: `npm run tauri dev`. Release binary: `npx tauri build --no-bundle`.
+- Rust lives in `~/.cargo/bin`.
+- Claude can drive the window itself (`osascript`, CGEvent, `screencapture`).
 
 ## The invariants
 
