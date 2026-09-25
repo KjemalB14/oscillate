@@ -57,7 +57,7 @@ slice 2, the pane runs `claude attach <id>`.**
 
 - Dev: `npm run tauri dev`. Release binary: `npx tauri build --no-bundle`.
 - Rust lives in `~/.cargo/bin`.
-- Claude can drive the window itself (`osascript`, CGEvent, `screencapture`).
+- Claude can drive the window itself with `~/.claude/scripts/drive-window` (`--help`).
 
 ## The invariants
 
