@@ -9,6 +9,61 @@ Newest entries at the top.
 
 ---
 
+## 2026-09-26 — Chapter 2, slice 2, session A: the sidebar and the harness
+
+Built on `ch2/slice-2-sidebar`; the implementation summary is in `PLAN-sessions.md`
+below the marker. What building it decided, and what it cost to find out:
+
+- **Two Rust gaps.** The handoff said slice 1 had everything the sidebar needed. It was
+  missing two things:
+  - `sessions_snapshot` answered `[]` both before the first poll and when there really
+    were no sessions. The empty state would have flashed at every launch, and stuck if
+    the first event fired before the page listened. It now returns `null` until a good
+    poll.
+  - The watched `~/.claude` was hard-coded, so an e2e touch test would have touched
+    the real directory. `OSCILLATE_CLAUDE_DIR` moves it.
+- **The WDIO plugins sit behind a cargo feature, not `cfg(debug_assertions)`** as the
+  plugin's docs suggest. Otherwise `npm run tauri dev`, in daily use, would open a
+  WebDriver port.
+  - Their capability goes inline in `tauri.e2e.conf.json`, merged with `--config`
+    only by the e2e build. `tauri-build` validates the merged config, so a normal
+    build never sees a `wdio:` permission it can't resolve.
+  - `tauri-plugin-wdio-webdriver`'s default permission set is empty; only
+    `wdio:default` is needed.
+- **The service spawns one app per run** (in its launcher `onPrepare`, with
+  `{...process.env, ...options.env}`).
+  - So the fake `claude` is created once, when the config loads. Its path reaches the
+    app through the service's `env`, and the workers through `process.env`.
+  - Specs change what the fake answers instead of relaunching the app.
+- **The merge gate records green; it doesn't run the suite.** At merge time the
+  checkout is on `main`, so running the suite there would test `main`'s code, not the
+  branch's.
+  - A full, green `npm run e2e` on a clean checkout appends `HEAD^{tree}` to
+    `<git-common-dir>/e2e-green`. The gate allows a merge whose incoming tree is
+    recorded.
+  - A single spec, a `.check.ts` run, or a dirty tree records nothing.
+  - **Rejected:** running the suite from the gate in a temp worktree of the branch. It
+    means a second `node_modules`, and a cold 1-minute cargo build in a second target
+    dir, on every merge.
+- **Hooks and agents load from the directory a session starts in.** This session
+  started in `~/Github Repos`, so `oscillate/.claude/settings.json` never loaded: a
+  `Write` to `e2e/*.spec.ts` went through. Run by hand, the lock refused the same
+  input.
+  - This is the same lesson as clipped's worktree one, and it matters here because
+    earlier handoffs sent sessions to `~/Github Repos`.
+  - **Session B must start in `oscillate/`**, or the author can't be dispatched and
+    the lock isn't armed.
+- **Screenshots while the Mac is locked.** The lock screen hides every window from
+  System Events, so `drive-window` can't find one. WebDriver's `saveScreenshot` still
+  works: the embedded driver snapshots the webview itself.
+  - The xterm canvas comes out blank, and a 28pt strip shows at the bottom where the
+    title bar is offset. Both are artifacts of the snapshot.
+  - The sidebar was checked this way against `all-states`, `empty`, a collapse, and
+    the real `claude agents --json --all` output (three sessions: one background, two
+    terminal tabs).
+
+---
+
 ## 2026-09-26 — Chapter 2, slice 2: porting clipped's e2e discipline
 
 This settles the *Undecided* entry before any spec exists. The decision and the rejected

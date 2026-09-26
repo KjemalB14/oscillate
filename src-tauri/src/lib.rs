@@ -25,22 +25,32 @@ fn initial_session() -> Option<String> {
     std::env::var("OSCILLATE_ATTACH").ok().filter(|id| !id.is_empty())
 }
 
-/// The last good session list; `sessions-changed` carries every later one.
+/// The last good session list, or `null` before the first good poll;
+/// `sessions-changed` carries every later one.
 #[tauri::command]
-fn sessions_snapshot(model: State<'_, SessionModel>) -> Vec<sessions::Session> {
+fn sessions_snapshot(model: State<'_, SessionModel>) -> Option<Vec<sessions::Session>> {
     model.poller.snapshot()
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
-        .plugin(tauri_plugin_opener::init())
+    let builder = tauri::Builder::default().plugin(tauri_plugin_opener::init());
+    #[cfg(feature = "e2e")]
+    let builder = builder
+        .plugin(tauri_plugin_wdio::init())
+        .plugin(tauri_plugin_wdio_webdriver::init());
+    builder
         .manage(pty::Ptys::default())
         .setup(|app| {
             let resolver = claude::resolver();
             resolver.clone().warm();
-            let home = PathBuf::from(std::env::var_os("HOME").unwrap_or_default());
-            let claude_dir = home.join(".claude");
+            // `OSCILLATE_CLAUDE_DIR` points the watch at a temp dir in e2e runs.
+            let claude_dir = std::env::var_os("OSCILLATE_CLAUDE_DIR")
+                .filter(|d| !d.is_empty())
+                .map(PathBuf::from)
+                .unwrap_or_else(|| {
+                    PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(".claude")
+                });
             let (tx, rx) = mpsc::channel();
             let watcher = watch::watch(&[claude_dir.join("sessions"), claude_dir.join("jobs")], tx);
             let handle = app.handle().clone();

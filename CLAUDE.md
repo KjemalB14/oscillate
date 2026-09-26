@@ -14,7 +14,9 @@ re-read before changing anything.
 
 **When a chapter or slice is finished, say so and hand off.** Do not roll straight into
 the next one. Finished means:
-- committed and pushed;
+- committed, and merged into `main` (there is no remote). The merge is gated: a
+  PreToolUse hook (`.claude/e2e-merge-gate.sh`) refuses it until the branch's exact
+  tree has a green `npm run e2e`, or its commits say `E2E: none — <why>`;
 - `CLAUDE.md` states the new state;
 - `NOTES.md` carries the reasoning;
 - `BACKLOG.md` is ticked;
@@ -55,19 +57,29 @@ to a background session through the resolver (`claude::resolver()`,
 `src-tauri/src/claude.rs`), and all 14 acceptance items were verified against Ghostty.
 The verdict and what it didn't prove are in `NOTES.md` → *Chapter 1 closed: go*.
 
-**Chapter 2 is open** (`PLAN-sessions.md`). Slice 1, the session model, is shipped, but
-nothing in the UI uses it yet:
+**Chapter 2 is open** (`PLAN-sessions.md`). Slice 1, the session model, is shipped:
 - The resolver is cached and warmed at launch.
 - `poll.rs` runs `claude agents --json --all` every 2s, and `watch.rs` re-polls on
   changes to `sessions/*.json` or `jobs/*/state.json`.
 - The frontend gets the list as the `sessions-changed` event and the
-  `sessions_snapshot` command, mapped by `sessions.rs`.
+  `sessions_snapshot` command (`null` until the first good poll), mapped by
+  `sessions.rs`.
 
-**Next: slice 2, the sidebar.**
+**Slice 2, the sidebar, is half done** (branch `ch2/slice-2-sidebar`, not merged).
+- `src/Sidebar.tsx` renders the list grouped by repo (`src/groups.ts`), beside the one
+  terminal pane. Clicking a session does nothing yet.
+- The e2e harness stands (`e2e/README.md`).
+- **Its specs are not written.** `e2e-author` writes them in a session **started from
+  this directory**. A session started anywhere else loads neither the agent nor the
+  hooks (`NOTES.md`, *Chapter 2, slice 2*).
 
 - Dev: `npm run tauri dev`. Release binary: `npx tauri build --no-bundle`.
 - Tests: `cargo test` in `src-tauri`, against fixtures and a fake `claude`
   (`testutil.rs`); they never run the real one.
+- E2E: `npm run e2e` (WDIO against a fake `claude` and a temp watched directory, which
+  `OSCILLATE_CLAUDE_DIR` points the watch at). **Specs (`e2e/*.spec.ts`) are written by
+  the `e2e-author` agent only**; a hook refuses everyone else. The rest of `e2e/` is the
+  harness. See `e2e/README.md`.
 - `OSCILLATE_ATTACH=<id>` makes the pane run `claude attach <id>`; without it, the pane
   runs a login shell.
 - `@xterm/*` is pinned to 6.1.0 betas for the kitty keyboard protocol. Don't

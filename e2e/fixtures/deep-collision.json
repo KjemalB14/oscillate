@@ -1,0 +1,5 @@
+[
+  {"pid": 2001, "id": "d1", "cwd": "/Users/me/a/x/repo", "kind": "background", "startedAt": 1790000000001, "sessionId": "d1-0000", "name": "first repo", "status": "busy", "state": "working"},
+  {"pid": 2002, "id": "d2", "cwd": "/Users/me/b/x/repo", "kind": "background", "startedAt": 1790000000002, "sessionId": "d2-0000", "name": "second repo", "status": "busy", "state": "working"},
+  {"id": "d3", "cwd": "/Users/me/code/solo", "kind": "background", "startedAt": 1790000000003, "sessionId": "d3-0000", "name": "only one", "state": "done"}
+]

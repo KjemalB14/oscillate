@@ -37,7 +37,7 @@ impl Default for PollConfig {
 
 /// Stops its thread when dropped.
 pub struct Poller {
-    latest: Arc<Mutex<Vec<Session>>>,
+    latest: Arc<Mutex<Option<Vec<Session>>>>,
     stop: Arc<AtomicBool>,
 }
 
@@ -48,7 +48,7 @@ impl Poller {
         triggers: Receiver<()>,
         on_change: impl Fn(&[Session]) + Send + 'static,
     ) -> Poller {
-        let latest = Arc::new(Mutex::new(Vec::new()));
+        let latest = Arc::new(Mutex::new(None));
         let stop = Arc::new(AtomicBool::new(false));
         let (latest2, stop2) = (latest.clone(), stop.clone());
         thread::Builder::new()
@@ -76,7 +76,7 @@ impl Poller {
                         Ok(sessions) => {
                             due = started + cfg.interval;
                             if last.as_ref() != Some(&sessions) {
-                                *latest2.lock().unwrap() = sessions.clone();
+                                *latest2.lock().unwrap() = Some(sessions.clone());
                                 on_change(&sessions);
                                 last = Some(sessions);
                             }
@@ -92,8 +92,9 @@ impl Poller {
         Poller { latest, stop }
     }
 
-    /// The last good list, for a page that loads after the event fired.
-    pub fn snapshot(&self) -> Vec<Session> {
+    /// The last good list, for a page that loads after the event fired. `None` until the
+    /// first good poll, so a page can tell "not known yet" from "no sessions".
+    pub fn snapshot(&self) -> Option<Vec<Session>> {
         self.latest.lock().unwrap().clone()
     }
 }
@@ -251,6 +252,18 @@ mod tests {
         fake.wait_for_starts(n + 2, 5 * SECOND).unwrap();
         thread::sleep(Duration::from_millis(50));
         assert_eq!(seen.count(), 2);
+    }
+
+    #[test]
+    fn snapshot_is_none_until_the_first_good_poll() {
+        let _serial = serial();
+        let fake = FakeClaude::new(b"[]");
+        fake.set_delay(0.5);
+        let (poller, _tx, seen) = start(&fake, fast(100));
+        assert_eq!(poller.snapshot(), None);
+        fake.wait_for_starts(2, 5 * SECOND).unwrap();
+        assert_eq!(seen.count(), 1);
+        assert_eq!(poller.snapshot(), Some(vec![]));
     }
 
     #[test]

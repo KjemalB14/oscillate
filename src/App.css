@@ -1,14 +1,238 @@
+:root {
+  --ground: #1e1e1e; /* the terminal's own background */
+  --rail: #252628;
+  --rail-hover: #2d2f32;
+  --hairline: #333538;
+  --text: #d6d6d6;
+  --muted: #8b9098;
+  --working: #6ea8fe;
+  --needs-you: #f2b84b;
+  --done: #62c37f;
+  --failed: #ef6b6b;
+  --stopped: #6b7079;
+  --focus: #6ea8fe;
+}
+
 html,
 body,
 #root {
   height: 100%;
   margin: 0;
-  background: #1e1e1e;
+  background: var(--ground);
   overflow: hidden;
+}
+
+.app {
+  display: flex;
+  height: 100%;
+}
+
+.pane-area {
+  flex: 1;
+  min-width: 0;
 }
 
 .terminal-pane {
   height: 100%;
   padding: 4px 0 0 6px;
   box-sizing: border-box;
+}
+
+/* The sidebar: a macOS source list, quieter than the terminal beside it. */
+
+.sidebar {
+  flex: 0 0 260px;
+  overflow-y: auto;
+  background: var(--rail);
+  border-right: 1px solid var(--hairline);
+  padding: 10px 6px 16px;
+  box-sizing: border-box;
+  color: var(--text);
+  font: 13px/1.35 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: default;
+}
+
+.group + .group {
+  margin-top: 8px;
+}
+
+.group-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-align: left;
+}
+
+.group-header:hover {
+  color: var(--text);
+}
+
+.group-header:focus-visible,
+.session:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+.chevron {
+  width: 0;
+  height: 0;
+  border-left: 4px solid currentColor;
+  border-top: 3.5px solid transparent;
+  border-bottom: 3.5px solid transparent;
+  transition: transform 120ms ease;
+}
+
+.group-header[aria-expanded="true"] .chevron {
+  transform: rotate(90deg);
+}
+
+.group-header .label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.group-header .count {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.sessions {
+  list-style: none;
+  margin: 2px 0 0;
+  padding: 0;
+}
+
+.session {
+  display: grid;
+  grid-template-columns: 8px 1fr;
+  column-gap: 9px;
+  align-items: center;
+  padding: 5px 8px 5px 18px;
+  border-radius: 5px;
+}
+
+.session:hover {
+  background: var(--rail-hover);
+}
+
+.session .name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session .detail {
+  grid-column: 2;
+  color: var(--muted);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* State dots: filled for a state, hollow for paused, dashed for one this build can't name. */
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  box-sizing: border-box;
+  background: var(--stopped);
+}
+
+.state-working .dot {
+  background: var(--working);
+}
+
+.state-done .dot {
+  background: var(--done);
+}
+
+.state-failed .dot {
+  background: var(--failed);
+}
+
+.state-paused .dot {
+  background: none;
+  border: 1.5px solid var(--muted);
+}
+
+.state-unknown .dot {
+  background: none;
+  border: 1.5px dashed var(--muted);
+}
+
+.state-terminal-tab .dot {
+  background: none;
+  border: 1.5px solid var(--stopped);
+}
+
+/* The one thing in the list that is waiting on you. */
+
+.state-needs-you .dot {
+  background: var(--needs-you);
+  animation: needs-you 2.4s ease-out infinite;
+}
+
+.state-needs-you .detail {
+  color: var(--needs-you);
+}
+
+@keyframes needs-you {
+  0% {
+    box-shadow: 0 0 0 0 rgb(242 184 75 / 55%);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 5px rgb(242 184 75 / 0%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .state-needs-you .dot {
+    animation: none;
+  }
+}
+
+.session[aria-disabled="true"] {
+  opacity: 0.5;
+}
+
+.session[aria-disabled="true"]:hover {
+  background: none;
+}
+
+.sidebar-note,
+.sidebar-empty {
+  margin: 0;
+  padding: 8px 10px;
+  color: var(--muted);
+}
+
+.sidebar-empty p {
+  margin: 0 0 6px;
+}
+
+.sidebar-empty p:first-child {
+  color: var(--text);
+}
+
+.sidebar-empty code {
+  font: 12px ui-monospace, Menlo, monospace;
+  color: var(--text);
 }

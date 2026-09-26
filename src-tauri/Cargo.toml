@@ -25,6 +25,13 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 portable-pty = "0.9.0"
 notify = "8"
+# The e2e harness only (`npm run e2e`): WebdriverIO's embedded driver, the one that
+# works on macOS. Never in `tauri dev` or a release build.
+tauri-plugin-wdio = { version = "1.4", optional = true }
+tauri-plugin-wdio-webdriver = { version = "1.4", optional = true }
+
+[features]
+e2e = ["dep:tauri-plugin-wdio", "dep:tauri-plugin-wdio-webdriver"]
 
 [dev-dependencies]
 tempfile = "3"

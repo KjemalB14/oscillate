@@ -131,8 +131,10 @@ what slice 1 or slice 3 builds:
 
 ## Acceptance criteria
 
-**Status:** slice 1 shipped. Items 1–8 pass (`NOTES.md`, *Chapter 2, slice 1*); slices
-2–4 are not started.
+**Status:** slice 1 shipped. Items 1–8 pass (`NOTES.md`, *Chapter 2, slice 1*).
+Slice 2 is built on `ch2/slice-2-sidebar`, and the harness runs green on its own check.
+**Items 9–12 are not yet proved:** no spec exists until `e2e-author` writes them.
+Slices 3–4 are not started.
 
 Slice 1 is checked by `cargo test` against fixture JSON and a fake `claude`. Slices 2
 and 3 use the e2e harness where it can drive the scenario, and otherwise the running
@@ -209,3 +211,44 @@ hand. Results go in `NOTES.md` under *Verified in the running app*.
 
 ---
 <!-- agreed 2026-09-25. Implementation below. -->
+
+## Slice 2: implementation (session A, 2026-09-26)
+
+- **Rust.**
+  - `sessions_snapshot` returns `null` until the first good poll, so the page can
+    tell "not known yet" from "no sessions".
+  - `OSCILLATE_CLAUDE_DIR` moves the watched directory, for tests only.
+  - A cargo feature `e2e` compiles in `tauri-plugin-wdio` and
+    `tauri-plugin-wdio-webdriver`. `src-tauri/tauri.e2e.conf.json` adds
+    `withGlobalTauri` and the `wdio:default` capability inline, so the shipped
+    capability file never names them.
+- **Frontend.**
+  - `src/sessions.ts` has `useSessions()`, which subscribes before it asks for the
+    snapshot.
+  - `src/groups.ts` groups by `cwd`, sorted by label, adding parent segments until
+    labels are unique, with sessions newest first.
+  - `src/Sidebar.tsx` renders it accessibly: a `navigation "Sessions"`, a `region`
+    per group, a header `button` with `aria-expanded`, and the count. Each state dot
+    has `role=img` and names its state. A terminal-tab row has `aria-disabled` and the
+    hint.
+  - `@wdio/tauri-plugin` is imported only when `VITE_E2E` is set.
+- **Harness** (`e2e/README.md`):
+  - one app for the whole run;
+  - a TS port of the fake `claude` and a temp watched directory;
+  - `show()` / `nextPoll()`;
+  - a one-line summary and `brief.md`;
+  - `e2e:snapshot` for the author;
+  - `harness.check.ts` (4 checks, green).
+- **Discipline** (`.claude/`):
+  - `e2e-author`;
+  - the spec lock (19 cases);
+  - the merge gate (12 cases).
+- **Session B:**
+  1. Start the session **from this directory**.
+  2. Dispatch `e2e-author` with items 9, 10 and 11 quoted verbatim.
+  3. Break the app to prove each spec can go red:
+     - Item 9: `groupSessions`, where every path meets, then the disambiguation alone.
+     - Items 10 and 11: the `sessions-changed` listener, then the watch trigger.
+     - The load path: `sessions_snapshot`.
+  4. Commit, then run `npm run e2e` on a clean tree, which records it green (item 12).
+  5. Merge through the gate.
