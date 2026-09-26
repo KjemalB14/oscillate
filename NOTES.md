@@ -9,6 +9,35 @@ Newest entries at the top.
 
 ---
 
+## 2026-09-26 — Chapter 2, slice 2: porting clipped's e2e discipline
+
+This settles the *Undecided* entry before any spec exists. The decision and the rejected
+options are in `PLAN-sessions.md` (*Chosen* and *Rejected*). This entry records what
+bore on it.
+
+- **The harness runs on macOS,** which the whole question depended on.
+  `@wdio/tauri-service` 1.4.0 supports macOS through its `embedded` driver, a
+  `tauri-plugin-wdio` compiled into the app. `tauri-driver` (`external`) is
+  Windows/Linux only, and `crabnebula` needs a paid key. Keeping the plugin out of
+  release builds is a planning question.
+- **Clipped's gate is a push gate, and Oscillate has no remote.** Ported as-is, it
+  would never fire. The handoff point here is the merge of a slice branch into `main`,
+  so the gate moves there.
+- **Three lessons from clipped shaped it** (clipped's `NOTES.md`, 2026-09-24 and
+  2026-09-25):
+  - `.claude/agents/` is read at session start, so a new agent means a session
+    boundary. Hooks reload live.
+  - A spec lock that fires on a spec being *mentioned* teaches workarounds. It must
+    key on a spec being the *target* of a write.
+  - The gate judged `$CLAUDE_PROJECT_DIR` rather than the checkout, and a worktree's
+    push got through as docs-only.
+- **Independence is in the order as well as the agent.** In session B the sidebar
+  already exists, so the author finds things through the accessibility tree. Its
+  assertions come from the criteria and the fake `claude`'s fixtures, not from what the
+  screen happens to show.
+
+---
+
 ## 2026-09-25 — Chapter 2, slice 1: the session model
 
 The session model is Rust only, with no UI: `claude.rs` (the resolver), `sessions.rs`

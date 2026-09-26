@@ -49,6 +49,34 @@ what slice 1 or slice 3 builds:
   - WebKit caps live WebGL contexts at 16 per page. Six panes stay well under that,
     but if the budget fails, the first lever is dropping the WebGL renderer in hidden
     panes.
+- **Clipped's e2e discipline is ported, with the gate moved from push to merge**
+  (decided 2026-09-26, at the start of slice 2).
+  - **`e2e-author` writes every spec.** It's a subagent that writes specs from this
+    file's acceptance criteria and never reads `src/` or `src-tauri/src/`. The agent
+    that writes the code can't write its test, because a test written that way can
+    agree with the code's own misreading.
+  - **A spec lock enforces it.** A PreToolUse hook refuses spec writes from every
+    agent but `e2e-author`. It's clipped's `e2e-spec-lock.sh` and its cases file,
+    adapted to WDIO's spec paths. It refuses only when a spec is the *target* of a
+    write, never when a spec is merely named.
+  - **The gate guards `git merge` into `main`,** because there's no remote to push
+    to. It keeps clipped's three answers:
+    - Docs-only changes are allowed.
+    - App code changed with no spec, and no commit trailer `E2E: none — <why>`, is
+      refused.
+    - Otherwise the suite runs, unless this exact code already passed it.
+  - The gate judges the checkout the command runs in, not `$CLAUDE_PROJECT_DIR`,
+    which let a worktree push through in clipped.
+  - **A slice with specs spans two sessions,** because an agent defined mid-session
+    can't be dispatched in that session:
+    - Session A builds the harness, the agent, the lock, the gate and the feature, on
+      the slice branch.
+    - Session B starts with the agent loaded. `e2e-author` writes the specs from the
+      criteria quoted verbatim, finding things through the app's accessibility tree,
+      never the source. Then come the break tests, then the merge.
+  - **A spec counts only once a break turns it red.** Break the rule where every
+    path meets, then each path's own entry point. In clipped, a spec that passed with
+    the shared root intact still missed a whole path.
 
 ## Rejected
 
@@ -77,12 +105,25 @@ what slice 1 or slice 3 builds:
   before the xterm cost is even known.
 - **No cap.** No recap is ever spent on eviction, but memory and CPU grow with every
   session opened since launch.
+- **The coding session writing its own specs** (decided 2026-09-26). It's cheaper,
+  but a spec written that way can share the code's misreading, and a break test only
+  proves the spec can go red, not that it read the criterion right.
+- **An inline general-purpose subagent as the author.** It could be used this session,
+  but it has no stable `agent_type`, so the lock couldn't tell it from any other
+  subagent.
+- **The single-author rule in `CLAUDE.md`, with no lock.** An instruction is what a
+  session forgets.
+- **A push gate, as in clipped.** There is no remote, so it would never fire.
+- **No gate, only an instruction to run the suite before merging.** Same reason as the
+  lock.
+- **Gating every commit on `main`.** Docs-only commits would pay the triage each time,
+  and slices land on `main` by merge anyway.
+- **Specs first, then the sidebar.** The specs would come before the code, but the
+  author would have to guess accessible names that don't exist yet, or the PLAN would
+  have to fix them first, which amounts to writing the UI in prose.
 
 ## Still open
 
-- **Whether to port clipped's e2e discipline** (the `e2e-author` agent, the spec lock,
-  the push gate). Decided in slice 2, when the harness arrives (`BACKLOG.md`,
-  *Undecided*).
 - **Whether ← is a real `exec` or a spawned child.** Confirmed at the start of slice 3.
   It changes how detection finds the process, not the decision.
 - **The xterm instance's own cost in WebContent.** Measured in slice 3. It can lower

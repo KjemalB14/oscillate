@@ -104,8 +104,8 @@ Both slices shipped (below). The results and the verdict are in `NOTES.md`.
 
 ## Undecided — needs a decision before it's work
 
-- [ ] **Whether to port clipped's e2e discipline**: the `e2e-author` agent, the spec
-  lock, and the push gate. Decide when the harness arrives in chapter 2, slice 2.
+Nothing open. (Clipped's e2e discipline was decided on 2026-09-26: ported, with the
+gate on merge instead of push. See `PLAN-sessions.md` → *Chosen*.)
 
 ## Shipped
 
