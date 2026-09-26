@@ -49,11 +49,10 @@ Both slices shipped (below). The results and the verdict are in `NOTES.md`.
   - A detached PTY shows "Detached — click to reattach".
   - A session that vanishes from the list closes its PTY.
   - Quitting the app detaches all PTYs and leaves the sessions running.
-  - Settle the LRU cap from chapter 1's numbers.
-  - **← in a pane opens agent view in place** (`NOTES.md`, chapter 1 slice 2). From
-    there the same PTY can attach a different session, which breaks invariant 3. Run
-    attach in the session's own `cwd`, so agent view never asks for trust in `$HOME`,
-    and treat the child's exec into `claude agents` as a detach.
+  - An LRU cap of 6 live PTYs, held to a measured budget (`PLAN-sessions.md`).
+  - **← in a pane opens agent view in place** (`NOTES.md`, chapter 1 slice 2). Attach
+    runs in the session's own `cwd`, and the child turning into `claude agents` is
+    detected and treated as a detach (`PLAN-sessions.md`).
   - On PTY exit, reset xterm's input modes (mouse, focus, kitty flags) so a dead pane
     sends nothing.
 - [ ] **4. Ship to the Dock.**
@@ -105,10 +104,6 @@ Both slices shipped (below). The results and the verdict are in `NOTES.md`.
 
 ## Undecided — needs a decision before it's work
 
-- [ ] **The LRU cap on live PTYs.** Decide from chapter 1's per-PTY measurements. One
-  attached pane measured 220–224 MiB idle and 240 MiB mid-stream, against 156 MiB for
-  a shell pane. `claude attach` itself is ~65 MiB, and it idles at ~3% CPU. The cost of
-  each extra xterm instance in WebContent is not measured yet.
 - [ ] **Whether to port clipped's e2e discipline**: the `e2e-author` agent, the spec
   lock, and the push gate. Decide when the harness arrives in chapter 2, slice 2.
 

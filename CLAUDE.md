@@ -53,8 +53,8 @@ handoff points into these files; it never copies their reasoning.
 `portable-pty` (`src-tauri/src/pty.rs`, `src/TerminalPane.tsx`). Its one pane attaches
 to a background session through the `claude_bin()` resolver (`src-tauri/src/claude.rs`),
 and all 14 acceptance items were verified against Ghostty. The verdict and what it
-didn't prove are in `NOTES.md` → *Chapter 1 closed: go*. **Next: open chapter 2 with
-`/decide`** (`BACKLOG.md`).
+didn't prove are in `NOTES.md` → *Chapter 1 closed: go*. **Chapter 2 is open:** its
+head is agreed in `PLAN-sessions.md`, and slice 1 (the session model) is next.
 
 - Dev: `npm run tauri dev`. Release binary: `npx tauri build --no-bundle`.
 - `OSCILLATE_ATTACH=<id>` makes the pane run `claude attach <id>`; without it, the pane
