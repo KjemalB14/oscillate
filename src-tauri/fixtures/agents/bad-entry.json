@@ -1,0 +1,5 @@
+[
+  {"id": "c1good", "cwd": "/tmp/r", "kind": "background", "startedAt": 1790000000001, "state": "done"},
+  {"id": "c2nokind", "cwd": "/tmp/r", "startedAt": 1790000000002, "state": "done"},
+  {"id": "c3good", "cwd": "/tmp/r", "kind": "background", "startedAt": 1790000000003, "state": "done"}
+]

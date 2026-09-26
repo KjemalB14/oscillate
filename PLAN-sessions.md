@@ -90,6 +90,9 @@ what slice 1 or slice 3 builds:
 
 ## Acceptance criteria
 
+**Status:** slice 1 shipped. Items 1–8 pass (`NOTES.md`, *Chapter 2, slice 1*); slices
+2–4 are not started.
+
 Slice 1 is checked by `cargo test` against fixture JSON and a fake `claude`. Slices 2
 and 3 use the e2e harness where it can drive the scenario, and otherwise the running
 app with `drive-window`, `ps`/`lsof` and `measure-footprint`. Slice 4 is checked by

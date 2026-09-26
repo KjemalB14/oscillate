@@ -26,7 +26,7 @@ Both slices shipped (below). The results and the verdict are in `NOTES.md`.
 
 ### Chapter 2 — Every session, one click away (ends in /Applications)
 
-- [ ] **1. The session model, Rust only, no UI.**
+- [x] **1. The session model, Rust only, no UI.** Shipped 2026-09-25.
   - The `claude` resolver: `claude_bin()` exists (`claude.rs`, `-lic`, returns the
     login PATH too). Add caching, since one call costs ~1s, and tests against a fake
     `claude`.
@@ -109,6 +109,9 @@ Both slices shipped (below). The results and the verdict are in `NOTES.md`.
 
 ## Shipped
 
+- 2026-09-25: chapter 2, slice 1: the session model. The cached resolver, the 2s poll,
+  the filtered file-watch, `sessions-changed`, and the state mapping. Items 1–8 pass
+  under `cargo test`; the results are in `NOTES.md`.
 - 2026-09-25: chapter 1, slice 2: the pane runs `claude attach <id>` through the
   `claude_bin()` resolver, with the kitty keyboard protocol on. Items 9–14 verified;
   **chapter 1 closes as a go**.

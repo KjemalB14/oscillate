@@ -1,0 +1,11 @@
+[
+  {"pid": 1001, "id": "a1working", "cwd": "/Users/me/code/alpha", "kind": "background", "startedAt": 1790000000001, "sessionId": "a1working-0000-0000-0000-000000000000", "name": "refactor the parser", "status": "busy", "state": "working"},
+  {"pid": 1002, "id": "a2blocked", "cwd": "/Users/me/code/alpha", "kind": "background", "startedAt": 1790000000002, "sessionId": "a2blocked-0000-0000-0000-000000000000", "name": "fix the flaky test", "status": "waiting", "waitingFor": "approve Bash", "state": "blocked"},
+  {"id": "a3done", "cwd": "/Users/me/code/beta", "kind": "background", "startedAt": 1790000000003, "sessionId": "a3done-0000-0000-0000-000000000000", "state": "done"},
+  {"id": "a4failed", "cwd": "/Users/me/code/beta", "kind": "background", "startedAt": 1790000000004, "sessionId": "a4failed-0000-0000-0000-000000000000", "state": "failed"},
+  {"id": "a5stopped", "cwd": "/Users/me/other/beta", "kind": "background", "startedAt": 1790000000005, "sessionId": "a5stopped-0000-0000-0000-000000000000", "state": "stopped"},
+  {"pid": 1006, "id": "a6idle", "cwd": "/Users/me/code/gamma", "kind": "background", "startedAt": 1790000000006, "sessionId": "a6idle-0000-0000-0000-000000000000", "status": "idle", "state": "working"},
+  {"id": "a7nolive", "cwd": "/Users/me/code/gamma", "kind": "background", "startedAt": 1790000000007, "sessionId": "a7nolive-0000-0000-0000-000000000000", "state": "working"},
+  {"pid": 4241, "cwd": "/Users/me/code", "kind": "interactive", "startedAt": 1790000000008, "sessionId": "11111111-2222-3333-4444-555555555555", "status": "busy"},
+  {"pid": 4242, "cwd": "/Users/me/code/alpha", "kind": "background", "startedAt": 1790000000009, "status": "idle"}
+]

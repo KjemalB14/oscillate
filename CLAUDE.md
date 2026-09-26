@@ -51,12 +51,23 @@ handoff points into these files; it never copies their reasoning.
 
 **Chapter 1, *The terminal holds*, is closed: go.** A Tauri 2 window runs xterm.js over
 `portable-pty` (`src-tauri/src/pty.rs`, `src/TerminalPane.tsx`). Its one pane attaches
-to a background session through the `claude_bin()` resolver (`src-tauri/src/claude.rs`),
-and all 14 acceptance items were verified against Ghostty. The verdict and what it
-didn't prove are in `NOTES.md` → *Chapter 1 closed: go*. **Chapter 2 is open:** its
-head is agreed in `PLAN-sessions.md`, and slice 1 (the session model) is next.
+to a background session through the resolver (`claude::resolver()`,
+`src-tauri/src/claude.rs`), and all 14 acceptance items were verified against Ghostty.
+The verdict and what it didn't prove are in `NOTES.md` → *Chapter 1 closed: go*.
+
+**Chapter 2 is open** (`PLAN-sessions.md`). Slice 1, the session model, is shipped, but
+nothing in the UI uses it yet:
+- The resolver is cached and warmed at launch.
+- `poll.rs` runs `claude agents --json --all` every 2s, and `watch.rs` re-polls on
+  changes to `sessions/*.json` or `jobs/*/state.json`.
+- The frontend gets the list as the `sessions-changed` event and the
+  `sessions_snapshot` command, mapped by `sessions.rs`.
+
+**Next: slice 2, the sidebar.**
 
 - Dev: `npm run tauri dev`. Release binary: `npx tauri build --no-bundle`.
+- Tests: `cargo test` in `src-tauri`, against fixtures and a fake `claude`
+  (`testutil.rs`); they never run the real one.
 - `OSCILLATE_ATTACH=<id>` makes the pane run `claude attach <id>`; without it, the pane
   runs a login shell.
 - `@xterm/*` is pinned to 6.1.0 betas for the kitty keyboard protocol. Don't
