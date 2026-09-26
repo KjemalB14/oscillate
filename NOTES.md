@@ -53,6 +53,14 @@ below the marker. What building it decided, and what it cost to find out:
     earlier handoffs sent sessions to `~/Github Repos`.
   - **Session B must start in `oscillate/`**, or the author can't be dispatched and
     the lock isn't armed.
+- **A gate has to be on `main` before the merge that brings it.** The hook's command
+  runs `$CLAUDE_PROJECT_DIR/.claude/e2e-merge-gate.sh`.
+  - Checking out `main` to merge a branch that is the only place the script exists
+    removes it. bash exits 127, a non-blocking hook error, and the merge goes through
+    ungated.
+  - So `.claude/` landed on `main` on its own (`608bd5e`), which the gate itself
+    allows as docs-only. From `main`, a real `git merge ch2/slice-2-sidebar` now exits
+    2: "app changed, no spec".
 - **Screenshots while the Mac is locked.** The lock screen hides every window from
   System Events, so `drive-window` can't find one. WebDriver's `saveScreenshot` still
   works: the embedded driver snapshots the webview itself.
