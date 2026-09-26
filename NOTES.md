@@ -9,6 +9,61 @@ Newest entries at the top.
 
 ---
 
+## 2026-09-25 — Chapter 2, slice 1: the session model
+
+The session model is Rust only, with no UI: `claude.rs` (the resolver), `sessions.rs`
+(the mapping), `poll.rs`, and `watch.rs`. Items 1–8 in `PLAN-sessions.md` are checked by
+`cargo test` (22 tests) against fixtures and a fake `claude`. A process watch during the
+run saw only the fake, never the real `claude`. Items are numbered as in the plan.
+
+| # | Item | Result |
+|---|------|--------|
+| 1 | One lookup | **Pass.** 100 calls make 1 lookup; 8 concurrent first callers make 1; `OSCILLATE_CLAUDE_BIN` runs no shell. In the app, one lookup across launch, the first poll and every later poll. |
+| 2 | Re-resolve on failure | **Pass.** A vanished binary makes exactly one more lookup, and a failed lookup isn't cached. |
+| 3 | Window doesn't wait | **Pass.** With `SHELL` set to a script that sleeps 3s, the window was up and screenshotted 1.5s before the lookup finished (4.3s). |
+| 4 | Serialized, every 2s | **Pass.** No overlap under a trigger every 200ms against a 3s poll. The steady-state gaps are 2.00 ± 0.02s. |
+| 5 | The watch re-polls | **Pass** in a temp dir with real FSEvents: a touch re-polls within 300ms; a burst of 20 makes at most 2 polls; `.jsonl` churn makes none. |
+| 6 | Quiet diff | **Pass.** |
+| 7 | Total mapping | **Pass**, including an unknown `state`, a `null` one, and a bare entry. |
+| 8 | Failed polls | **Pass.** Non-zero exit and garbage keep the last list, and the next good poll emits. |
+
+In the dev app, the first `sessions-changed` matched `claude agents --json --all` entry
+for entry, 2.3s after setup. The resolver's lookup took **1.62s in the app**, not the
+0.96s measured by hand in chapter 1, which is more reason to warm it.
+
+### What building it decided
+
+- **The resolver re-checks the cached path with a stat on every call**, instead of
+  having each call site classify spawn errors (`NotFound`, exit 127) and retry. That
+  was the plan's version; the stat is one line and catches the nvm-switch case before
+  any spawn. **Rejected:** the call-site retry, which every new caller would have to
+  remember.
+- **The watch only reacts to `sessions/*.json` and `jobs/*/state.json`.** A job
+  directory also holds `timeline.jsonl` and `tmp/`, which a streaming session can write
+  continuously, and every event would cost a 0.13s `claude agents` run. Only the event's
+  path is looked at, never a file's contents (invariant 5).
+  - **Rejected:** reacting to every event.
+  - **Rejected:** a minimum gap between polls started by triggers, which would also
+    delay a single real change. Add it only if the filtered rate proves high.
+- **UI states:**
+  - `paused` means `state: working` without `status: busy`: a background job that is
+    idle, or has no live process.
+  - An entry with no `id` is `terminal-tab`, because `claude attach` needs the id.
+  - A new `state` string maps to an eighth value, `unknown`, and keeps the raw string.
+    **Rejected:** folding it into `working`, which would mislead.
+- **A failed poll waits 10s before the next timed try**, so a missing `claude` doesn't
+  cost a login shell every 2s. A file-watch trigger still polls at once.
+- **Testing timings:** tests that start a poller share one lock, so they don't skew
+  each other's timings. A freshly written fake's first run reaches its log about 200ms
+  late (the first gap measured 1.80s every time), so the interval test measures from
+  the second poll.
+
+### Not yet seen
+
+A real `~/.claude/sessions` event in the running app. Nothing under the watched
+directories changed during the 4 minutes the app was watched. The code path is the one
+item 5 exercises, and the path filter's tests use the real layout.
+
 ## 2026-09-25 — Chapter 1 closed: go
 
 Slice 2 held against the amended bars, with no unfixable item, so **the stack stays**
