@@ -58,11 +58,20 @@ for entry, 2.3s after setup. The resolver's lookup took **1.62s in the app**, no
   late (the first gap measured 1.80s every time), so the interval test measures from
   the second poll.
 
-### Not yet seen
+### What a longer run in the app showed
 
-A real `~/.claude/sessions` event in the running app. Nothing under the watched
-directories changed during the 4 minutes the app was watched. The code path is the one
-item 5 exercises, and the path filter's tests use the real layout.
+- **The watch fires on real files.** When a Claude Code session changed status, its
+  `~/.claude/sessions/<pid>.json` changed, and the filter marked the event relevant.
+  Nothing under the watched directories changed in the first 4 minutes: session files
+  are written on status changes, not continuously.
+- **Claude Code auto-updated mid-run (2.1.282 → 2.1.283), and the resolver
+  recovered.** While the update reinstalled, the `claude` path briefly didn't exist.
+  The stat missed and the login shell couldn't find `claude` either, so one poll failed
+  and waited the 10s retry. The next lookup found the new binary; there was no restart
+  and no stuck state.
+  - **For slice 3:** an attach clicked during that window fails once, and the pane
+    must say so and allow a retry. `claude attach` processes already running keep the
+    old binary.
 
 ## 2026-09-25 — Chapter 1 closed: go
 
