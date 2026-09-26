@@ -16,7 +16,7 @@ use portable_pty::{native_pty_system, ChildKiller, CommandBuilder, MasterPty, Pt
 use tauri::ipc::{Channel, InvokeResponseBody};
 use tauri::{AppHandle, Manager, State};
 
-use crate::claude::claude_bin;
+use crate::claude::{child_env, resolver};
 
 const READ_CHUNK: usize = 64 * 1024;
 const MAX_MESSAGE: usize = 256 * 1024;
@@ -125,14 +125,13 @@ pub fn pty_spawn(
             if session.is_empty() || !session.chars().all(|c| c.is_ascii_alphanumeric()) {
                 return Err(format!("not a session id: {session:?}"));
             }
-            let claude = claude_bin()?;
-            let mut cmd = CommandBuilder::new(claude.path);
+            let claude = resolver().get()?;
+            let mut cmd = CommandBuilder::new(&claude.path);
             cmd.args(["attach", session]);
             cmd.env_clear();
-            for (key, value) in clean_env() {
+            for (key, value) in child_env(&claude) {
                 cmd.env(key, value);
             }
-            cmd.env("PATH", claude.path_var);
             cmd
         }
         None => {

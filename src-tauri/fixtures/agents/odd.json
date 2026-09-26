@@ -1,0 +1,6 @@
+[
+  {"id": "b1future", "cwd": "/tmp/r", "kind": "background", "startedAt": 1790000000001, "state": "hibernating", "somethingNew": {"x": 1}},
+  {"id": "b2null", "cwd": "/tmp/r", "kind": "background", "startedAt": 1790000000002, "state": null},
+  {"id": "b3bare", "kind": "background"},
+  {"cwd": "/tmp/r", "kind": "interactive"}
+]
