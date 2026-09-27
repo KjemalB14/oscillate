@@ -9,6 +9,55 @@ Newest entries at the top.
 
 ---
 
+## 2026-09-27 — Chapter 2, slice 2, session B: the specs, the breaks, the merge
+
+Slice 2 is merged (`7d2eb88`, a fast-forward through the gate). Items 9–12 pass.
+
+- **The specs.** `e2e-author` wrote them, one dispatch per item, each with its
+  criterion quoted verbatim: `sidebar-groups` (9), `sidebar-rows` (10) and
+  `sidebar-updates` (11). The full suite is 12 claims, green on a clean tree, and the
+  tree is recorded for the gate (item 12).
+- **Dispatch the author one item at a time.** Every spec run shares one e2e build dir,
+  one WebDriver port and one `.results/`. Parallel authors would collide.
+- **Read each spec before accepting "green".** As first written, two of the three
+  passed while proving less than their criterion:
+  - Item 9's collapse claim asserted `not.toBeDisplayed()` on `$("*=a6idle")`. That
+    passes whether or not anything collapsed, because a bare `*=text` is WDIO's
+    partial **link-text** selector and matches only `<a>`. Now it counts displayed rows
+    in the group: 2, then 0, then 2.
+  - Item 10 checked the dot on 2 of the 9 sessions, and only that it had a name. Now it
+    counts 9 dots for 9 sessions, and requires different states to have different dot
+    names.
+  - Both went back to their authors with the reason; neither was edited here.
+  - **Rule:** a negative assertion counts only on a locator that has matched before.
+    The `*=` pitfall is now in `e2e/README.md` for the next author.
+- **The breaks.** Each was run against the full suite, then restored:
+
+  | Break | Red |
+  |---|---|
+  | `groupSessions`: every session in one group | 5: item 9 ×4, item 10's terminal-tab claim |
+  | Labels are the basename alone (no disambiguation) | 2: item 9's collision claims |
+  | Disambiguation stops after one parent segment | 1: item 9's deep-collision claim |
+  | The `sessions-changed` listener drops its payload | 4: items 9, 10 and 11 (both) |
+  | The watch never triggers (`relevant` forced false) | 1: item 11's 0.5s-after-touch claim |
+  | `sessions_snapshot` always `None` | 2: item 9's first two claims |
+
+  - The first try at the disambiguation break (`break;` in place of
+    `if (!deepened) break;`) didn't compile: `tsc` rejects a variable that is written
+    but never read. That is why the table has two disambiguation breaks.
+- **The load path is covered by accident.** No spec reloads the page. The snapshot
+  break goes red only because the fake starts on `all-states`, and the first spec's
+  first `show("all-states")` changes nothing. No event fires, so the snapshot is all
+  the page has. A different spec order or a different default fake would lose it. A
+  deliberate claim is in `BACKLOG.md`.
+- **Two spec-maintenance costs, accepted:**
+  - `sidebar-groups` reads a group's count by span position (`spans[2]`), so moving the
+    header's chevron breaks it without the app being wrong.
+  - `snapshot.check.ts` lists a span only when it has text, so the author couldn't see
+    the chevron's empty span in `snapshot.txt` and found it live.
+
+---
+
 ## 2026-09-26 — Chapter 2, slice 2, session A: the sidebar and the harness
 
 Built on `ch2/slice-2-sidebar`; the implementation summary is in `PLAN-sessions.md`

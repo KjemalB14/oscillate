@@ -37,7 +37,7 @@ Both slices shipped (below). The results and the verdict are in `NOTES.md`.
   - One pure function maps each entry to what the UI shows: working · needs you · done ·
     failed · stopped · paused · terminal-tab.
   - Tests run over fixture JSON and a fake `claude`.
-- [ ] **2. Sidebar rendering only.**
+- [x] **2. Sidebar rendering only.** Shipped 2026-09-27.
   - Repo groups by `cwd` (basename, disambiguated), collapsible, with counts.
   - Each session shows a state dot, name and `waitingFor`. Terminal-tab sessions are
     dimmed with a "run /bg to open here" hint.
@@ -101,6 +101,10 @@ Both slices shipped (below). The results and the verdict are in `NOTES.md`.
   slice 2).
 - [ ] **Branch name and PR status colors** on the badge, once the thread view is reading
   transcripts anyway.
+- [ ] **An e2e claim for the sidebar's load path.** Only an incidental one covers
+  `sessions_snapshot` today (`NOTES.md`, *Chapter 2, slice 2, session B*). A claim
+  that reloads the page and sees the current list without the fake changing would
+  make it deliberate. `e2e-author` writes it.
 
 ## Undecided — needs a decision before it's work
 
@@ -109,6 +113,10 @@ gate on merge instead of push. See `PLAN-sessions.md` → *Chosen*.)
 
 ## Shipped
 
+- 2026-09-27: chapter 2, slice 2: the sidebar. Repo groups (disambiguated,
+  collapsible, counted), rows with a state dot, name and `waitingFor`, dimmed
+  terminal-tab rows, and an empty state. Items 9–12 pass under `npm run e2e`, with
+  specs by `e2e-author`, each proved red by a break. The results are in `NOTES.md`.
 - 2026-09-25: chapter 2, slice 1: the session model. The cached resolver, the 2s poll,
   the filtered file-watch, `sessions-changed`, and the state mapping. Items 1–8 pass
   under `cargo test`; the results are in `NOTES.md`.

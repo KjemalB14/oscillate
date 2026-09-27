@@ -132,8 +132,9 @@ what slice 1 or slice 3 builds:
 ## Acceptance criteria
 
 **Status:** slice 1 shipped. Items 1–8 pass (`NOTES.md`, *Chapter 2, slice 1*).
-Slice 2 is built on `ch2/slice-2-sidebar`, and the harness runs green on its own check.
-**Items 9–12 are not yet proved:** no spec exists until `e2e-author` writes them.
+Slice 2 shipped 2026-09-27: items 9–12 pass under `npm run e2e`, with specs by
+`e2e-author`, each proved red by a break (`NOTES.md`, *Chapter 2, slice 2, session B*).
+The load path (`sessions_snapshot`) is covered only incidentally, which is noted there.
 Slices 3–4 are not started.
 
 Slice 1 is checked by `cargo test` against fixture JSON and a fake `claude`. Slices 2

@@ -65,13 +65,14 @@ The verdict and what it didn't prove are in `NOTES.md` → *Chapter 1 closed: go
   `sessions_snapshot` command (`null` until the first good poll), mapped by
   `sessions.rs`.
 
-**Slice 2, the sidebar, is half done** (branch `ch2/slice-2-sidebar`, not merged).
+**Slice 2, the sidebar, is shipped** (merged 2026-09-27; items 9–12 green).
 - `src/Sidebar.tsx` renders the list grouped by repo (`src/groups.ts`), beside the one
-  terminal pane. Clicking a session does nothing yet.
-- The e2e harness stands (`e2e/README.md`).
-- **Its specs are not written.** `e2e-author` writes them in a session **started from
-  this directory**. A session started anywhere else loads neither the agent nor the
-  hooks (`NOTES.md`, *Chapter 2, slice 2*).
+  terminal pane. Clicking a session does nothing yet; that is slice 3.
+- `e2e/sidebar-*.spec.ts` cover it. Specs are written by `e2e-author`, in a session
+  **started from this directory**. A session started anywhere else loads neither the
+  agent nor the hooks (`NOTES.md`, *Chapter 2, slice 2*).
+
+**Slice 3, click to attach with a PTY pool, is next.** It is not started.
 
 - Dev: `npm run tauri dev`. Release binary: `npx tauri build --no-bundle`.
 - Tests: `cargo test` in `src-tauri`, against fixtures and a fake `claude`

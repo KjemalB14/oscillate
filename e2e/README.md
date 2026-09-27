@@ -47,6 +47,12 @@ when nothing changed.
 - **The app polls every 2s**, and within about 100ms of a change to
   `<watched>/sessions/*.json` (`fake.touch()`). After a poll whose list changed, it
   emits `sessions-changed` and the sidebar re-renders.
+- **Locators, two traps** (`NOTES.md`, *Chapter 2, slice 2, session B*):
+  - A bare `*=text` is WDIO's partial *link-text* selector and matches only `<a>`. Use
+    `li*=text` or an xpath `contains(text(), …)`.
+  - `not.toBeDisplayed()` and `not.toBeExisting()` pass on a locator that never
+    matches. Assert the positive first, on the same locator.
+  - `snapshot.txt` omits elements with no text, such as a group header's chevron span.
 - **`fixtures/`** are `claude agents --json --all` outputs:
   - `all-states.json`: every UI state, two repos both named `beta`, and two
     terminal-tab entries (a copy of the Rust fixture).
