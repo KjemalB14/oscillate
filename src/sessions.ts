@@ -26,6 +26,8 @@ export interface Session {
   rawState: string | null;
   waitingFor: string | null;
   startedAt: number;
+  /** What rows sort by, newest first: the `startedAt` the app first saw for this `key`. */
+  sortKey: number;
 }
 
 /**

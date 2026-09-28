@@ -9,6 +9,58 @@ Newest entries at the top.
 
 ---
 
+## 2026-09-28 — Chapter 3, slice 1: rows stay still
+
+Chapter 3 was decided first. `PLAN-new-sessions.md` holds its head: the choices, what
+was rejected, and items 1–22.
+
+### Why rows moved
+
+`startedAt` in `agents --json` is when the session's *current process* started, not when
+the session was created. This job's `state.json` said `createdAt` 07:24, while
+`agents --json` said `startedAt` 14:15, the time of its last respawn. Attaching a paused
+or done session respawns it, so it jumped to the top. That was the unverified cause
+noted in slice 3.
+
+### What was built
+
+- `sessions::FirstSeen`: a `key → startedAt` map that the poll thread keeps for the life
+  of the process. It stamps every list with `sortKey` before diffing or emitting it.
+  Because the map lives in Rust, not React, `sessions_snapshot` carries the frozen
+  order across a webview reload.
+- `groups.ts` sorts rows by `sortKey`, newest first, with ties broken by `key`.
+- Two unit tests (a respawn plus a rename keeps the key; a new key uses its own
+  `startedAt`).
+
+### Verified
+
+Items 1–4 pass under `npm run e2e` (`e2e/sidebar-order.spec.ts`, by `e2e-author`).
+Whole suite: 30 passed.
+
+- **Breaks:** sorting by live `startedAt`, by name, oldest first, and a no-op stamp at
+  the root each turned all four red. The claims build on each other in file order, so
+  an early break cascades. A snapshot with its sort keys stripped, which is the reload
+  path's own entry point, turned **only item 4** red.
+- **Not reproduced:** the author's first run timed out item 1's wait for 10 more polls
+  (40s, where ~20s is expected). The next five runs took 22.5s each for that claim,
+  including one started at a load average of ~20. The failed run's poll timestamps are
+  gone, so the cause is unknown.
+- **The `e2e-author` run stalled** after writing the spec and running it once (no
+  progress for 600s). The spec on disk was complete. The breaks and reruns were done
+  by the coding session, which never edited the spec.
+
+### Cargo flakes under load
+
+At a load average of ~4.5 (other background sessions running), two timing tests flaked:
+
+- `a_failed_poll_waits_the_retry_interval` failed on its **first-start** wait (1s),
+  with and without this slice's change. That wait isn't the claim, so it's now 3s.
+- `item5_a_touch_repolls_within_300ms` failed once in three runs. 300ms is the
+  criterion's own bound, so it was left as is. If it recurs, measure under load before
+  touching either the bound or the watch.
+
+---
+
 ## 2026-09-28 — Chapter 2 closed: every session, one click away
 
 All four slices shipped. The app lives in `/Applications`, lists every session grouped
