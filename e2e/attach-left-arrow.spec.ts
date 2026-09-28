@@ -32,8 +32,15 @@ function rowContaining(text: string) {
   return $(`//*[contains(text(),"${text}")]/..`);
 }
 
-function detachButton() {
-  return $("button*=Detached");
+function pane(id: string) {
+  return $(`section[aria-label="${id} terminal"]`);
+}
+
+// Hidden panes stay mounted in the pool, each possibly with its own Detached message,
+// so a page-global `button*=Detached` could match a stale one from another session.
+// Scoped to this session's own pane, it can't.
+function detachButton(id: string) {
+  return pane(id).$("button*=Detached");
 }
 
 describe('← detaches: shows "Detached — click to reattach" in time, then cleans up (item 15)', () => {
@@ -59,8 +66,8 @@ describe('← detaches: shows "Detached — click to reattach" in time, then cle
         await row.waitForClickable();
         await row.click();
       } else {
-        await detachButton().waitForClickable();
-        await detachButton().click();
+        await detachButton(id).waitForClickable();
+        await detachButton(id).click();
       }
       await browser.waitUntil(async () => fake.attaches(id).length > beforeAttaches, {
         timeout: 3000,
@@ -91,7 +98,7 @@ describe('← detaches: shows "Detached — click to reattach" in time, then cle
       await browser.waitUntil(
         async () => {
           if (appearAt === null && fake.agentViews().length > beforeAgentViews) appearAt = Date.now();
-          if (appearAt !== null && (await detachButton().isExisting())) {
+          if (appearAt !== null && (await detachButton(id).isExisting())) {
             shownAt = Date.now();
             return true;
           }
