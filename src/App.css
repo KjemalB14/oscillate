@@ -30,12 +30,49 @@ body,
 .pane-area {
   flex: 1;
   min-width: 0;
+  position: relative;
 }
 
+/* Every open pane is stacked here; only the selected one is visible. Hidden panes keep
+   their size, so a switch never refits or reflows. */
 .terminal-pane {
-  height: 100%;
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.terminal-pane.hidden {
+  visibility: hidden;
+}
+
+.terminal-host {
+  flex: 1;
+  min-height: 0;
   padding: 4px 0 0 6px;
-  box-sizing: border-box;
+}
+
+.pane-status {
+  flex: none;
+  padding: 7px 12px;
+  border: 0;
+  border-top: 1px solid var(--hairline);
+  background: var(--rail);
+  color: var(--text);
+  font: 13px/1.35 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pane-status:hover {
+  background: var(--rail-hover);
+}
+
+.pane-empty {
+  margin: 0;
+  padding: 24px;
+  color: var(--muted);
+  font: 13px/1.35 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
 }
 
 /* The sidebar: a macOS source list, quieter than the terminal beside it. */
@@ -128,6 +165,10 @@ body,
 
 .session:hover {
   background: var(--rail-hover);
+}
+
+.session[aria-current="true"] {
+  background: var(--hairline);
 }
 
 .session .name {

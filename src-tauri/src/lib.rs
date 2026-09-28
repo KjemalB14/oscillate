@@ -10,7 +10,7 @@ use std::path::PathBuf;
 use std::sync::mpsc;
 
 use tauri::webview::PageLoadEvent;
-use tauri::{Emitter, Manager, RunEvent, State};
+use tauri::{AppHandle, Emitter, Manager, RunEvent, State};
 
 /// The session model's live parts: the poll thread and the file-watch feeding it.
 struct SessionModel {
@@ -18,11 +18,11 @@ struct SessionModel {
     _watcher: Option<notify::RecommendedWatcher>,
 }
 
-/// The session the pane attaches to, passed in by hand until chapter 2's sidebar:
-/// `OSCILLATE_ATTACH=<id> npm run tauri dev`. Unset, the pane runs a login shell.
-#[tauri::command]
-fn initial_session() -> Option<String> {
-    std::env::var("OSCILLATE_ATTACH").ok().filter(|id| !id.is_empty())
+/// The session's `cwd` as the last good poll reported it; where its attach runs.
+pub(crate) fn session_cwd(app: &AppHandle, id: &str) -> Option<String> {
+    let model = app.try_state::<SessionModel>()?;
+    let sessions = model.poller.snapshot()?;
+    sessions.into_iter().find(|s| s.id.as_deref() == Some(id)).map(|s| s.cwd)
 }
 
 /// The last good session list, or `null` before the first good poll;
@@ -55,9 +55,11 @@ pub fn run() {
             let watcher = watch::watch(&[claude_dir.join("sessions"), claude_dir.join("jobs")], tx);
             let handle = app.handle().clone();
             let poller = poll::Poller::start(resolver, Default::default(), rx, move |list| {
+                pty::close_unlisted(&handle.state::<pty::Ptys>(), list);
                 let _ = handle.emit("sessions-changed", list);
             });
             app.manage(SessionModel { poller, _watcher: watcher });
+            pty::watch(app.handle().clone());
             Ok(())
         })
         // A reload drops the page without running React cleanup; its PTYs would be orphaned.
@@ -67,7 +69,6 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
-            initial_session,
             sessions_snapshot,
             pty::pty_spawn,
             pty::pty_write,
