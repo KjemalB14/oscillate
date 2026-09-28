@@ -134,7 +134,10 @@ Plus how the chapter is sliced.
 
 ## Acceptance criteria
 
-**Status:** nothing shipped yet.
+**Status:** slice 1 shipped 2026-09-28. Items 1–4 pass under `npm run e2e`
+(`e2e/sidebar-order.spec.ts`, by `e2e-author`). A snapshot without sort keys turns
+only item 4 red, and the other breaks cascade through all four (`NOTES.md`,
+*Chapter 3, slice 1*). Slices 2–4 aren't started.
 
 Every item is checked by `npm run e2e` against the fake `claude`, unless it says it's
 checked by hand. The specs come from `e2e-author`, and each is proved red by a break.

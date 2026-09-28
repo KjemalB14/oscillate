@@ -33,8 +33,7 @@ All four slices shipped (below). The results are in `NOTES.md`.
 Decided 2026-09-28. The decisions, rejections and acceptance criteria are in
 `PLAN-new-sessions.md`.
 
-- [ ] **1. Rows stay still.** Each row keeps the `startedAt` the app first saw, for the
-  life of the app process.
+- [x] **1. Rows stay still.** Shipped 2026-09-28 (below).
 - [ ] **2. New session.**
   - A "+" on a repo group opens a prompt box, with a prompt and a permission mode, that
     runs `claude --bg` in that repo, then selects and attaches the new session.
@@ -92,6 +91,10 @@ gate on merge instead of push. See `NOTES.md` → *Chapter 2 closed*.)
 
 ## Shipped
 
+- 2026-09-28: chapter 3, slice 1: rows stay still. Each row keeps the `startedAt` the
+  app first saw for its key, for the life of the app process, and a webview reload
+  keeps the order. Items 1–4 pass under `npm run e2e`, each proved red by a break. The
+  results are in `NOTES.md`.
 - 2026-09-28: chapter 2, slice 4: ship to the Dock. `Oscillate.app` with its own icon,
   ad-hoc signed by the build, installed in `/Applications`. Launched from Finder, it
   lists every session about 1s after its window appears, and a click attaches with the
