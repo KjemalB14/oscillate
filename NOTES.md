@@ -49,6 +49,20 @@ Whole suite: 30 passed.
   progress for 600s). The spec on disk was complete. The breaks and reruns were done
   by the coding session, which never edited the spec.
 
+### Specs no longer need a second session
+
+`e2e-author` was dispatched in the same session that wrote the code. The two-session
+split (`NOTES.md`, *Chapter 2 closed*) existed only because the agent was defined in the
+session that needed it. Now that it's committed, any session started from this directory
+can dispatch it. The independence rule stands: the coding session never writes or
+edits a spec.
+
+### Not installed
+
+`/Applications/Oscillate.app` was not rebuilt, so it still sorts by live `startedAt`.
+Reinstalling means quitting the running app, which closes its attached panes (see
+*Current state* in `CLAUDE.md` for the steps).
+
 ### Cargo flakes under load
 
 At a load average of ~4.5 (other background sessions running), two timing tests flaked:
