@@ -9,6 +9,54 @@ Newest entries at the top.
 
 ---
 
+## 2026-09-28 — Chapter 2, slice 4: ship to the Dock
+
+`Oscillate.app` is built, ad-hoc signed, has its own icon, and is installed in
+`/Applications`. Items 23 and 24 pass, except that 24's daemon clause couldn't be
+triggered (below).
+
+### What was built
+
+- **`tauri.conf.json`:** `bundle.targets` is `["app"]`, and
+  `bundle.macOS.signingIdentity` is `"-"`. So `npx tauri build` alone produces the
+  signed bundle, then `ditto` installs it (`CLAUDE.md`). The e2e build is
+  `--no-bundle` and doesn't read either setting.
+  - **Rejected:** `targets: "all"`. The DMG step adds a script and a disk image nobody
+    downloads, because the app is only ever installed on this Mac.
+  - **Rejected:** running `codesign -s -` by hand after each build. The config makes
+    the signature part of the build, so a reinstall can't skip it.
+- **The icon** is two sine waves in antiphase, amber over a dimmer teal, on a dark
+  indigo squircle drawn to the macOS 824/1024 grid. Its source is
+  `src-tauri/icons/app-icon.svg`, and every size is regenerated with
+  `npx tauri icon src-tauri/icons/app-icon.svg`. Only the files the repo already had
+  were copied in; the generated `android/`, `ios/` and `64x64.png` were dropped.
+  **Rejected:** keeping Tauri's default logo. It passes "with an icon" in letter only,
+  and it looks like every other Tauri app in the Dock.
+
+### Verified in the running app
+
+| # | Item | Result |
+|---|------|--------|
+| 23 | In `/Applications`, icon, ad-hoc | **Pass.** `codesign -dv`: `Signature=adhoc`, flags `adhoc,runtime` (Tauri turns on the hardened runtime by default, and nothing broke under it), `Identifier=dev.oscillate.app`. `codesign --verify --deep --strict` passes. `spctl` rejects it, as it rejects any ad-hoc app. The bundle was built here, so it carries no quarantine attribute and opens without a Gatekeeper prompt. `Info.plist` names `icon.icns`, which was generated from the new SVG. |
+| 24 | Finder launch: list within 2s, a click attaches | **Pass, but the daemon clause wasn't triggered.** The app was opened through Finder (`tell application "Finder" to open POSIX file …`). Its parent is launchd, and its environment has `PATH=/usr/bin:/bin:/usr/sbin:/sbin`, with no `TERM`. Its `claude agents --json --all` polls resolve to nvm's `claude`, with the login shell's full PATH. **Timing, over 5 Finder launches:** the window appeared 0.36–0.50s after the open, and the first poll finished 0.96–1.16s after the window. The login shell (`zsh -lic`) was most of that, at about 1–1.4s. The author confirmed the sidebar matched `claude agents --json --all` (5 sessions in 4 groups, the terminal-tab row dimmed), then clicked rows. Each click started one `claude attach <id>` in that session's own `cwd`, with the login shell's PATH and `TERM=xterm-256color`. |
+
+- **The daemon clause wasn't triggered.** The supervisor daemon was already running,
+  and it hosts the session that ran these checks (a `claude --bg` job), so stopping it
+  wasn't an option. What was shown instead: the attach's own environment has the login
+  shell's PATH. Chapter 1, slice 2 showed that a daemon started by an attach inherits
+  the attach's PATH. A direct check is in `BACKLOG.md`: look at the daemon's PATH the
+  next time an Oscillate click starts it.
+- **How the timing was measured.** A Swift loop over `CGWindowListCopyWindowInfo`
+  timed the window's first appearance: a layer-0 window owned by `oscillate`. That
+  call needs no Accessibility or Apple Events permission. A 20ms `ps` sampler timed
+  the app's children. Both were throwaway scripts in the job's tmp directory.
+- **A `claude --bg` job can't drive the GUI.** `osascript` to System Events fails with
+  `-1743` (not authorized to send Apple events), so `drive-window` doesn't work from a
+  background session. Apple Events to Finder do work, and that is what made the Finder
+  launch possible. The click was made by the author.
+- The throwaway session was `claude --bg --permission-mode plan` in `~/Github Repos`,
+  named "Oscillate slice 4 probe", and `claude rm`'d afterwards.
+
 ## 2026-09-28 — Chapter 2, slice 3: click to attach, with a pool of panes
 
 Slice 3 is built, specified, broken, verified in the running app, and merged. The

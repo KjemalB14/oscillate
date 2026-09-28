@@ -141,8 +141,9 @@ Slice 2 shipped 2026-09-27: items 9–12 pass under `npm run e2e`, with specs by
 The load path (`sessions_snapshot`) is covered only incidentally, which is noted there.
 Slice 3 shipped 2026-09-28. Items 13–18, 20 and 22 pass under `npm run e2e`, with specs
 by `e2e-author`, each proved red by a break. Items 13–15, 19 and 21 were checked against
-real `claude` in the release app (`NOTES.md`, *Chapter 2, slice 3*). Slice 4 is not
-started.
+real `claude` in the release app (`NOTES.md`, *Chapter 2, slice 3*). Slice 4 shipped
+2026-09-28: items 23–24 were verified by hand on the installed app. Not proved: 24's
+daemon clause, since the daemon was already running (`NOTES.md`, *Chapter 2, slice 4*).
 
 Slice 1 is checked by `cargo test` against fixture JSON and a fake `claude`. Slices 2
 and 3 use the e2e harness where it can drive the scenario, and otherwise the running
