@@ -44,7 +44,7 @@ Both slices shipped (below). The results and the verdict are in `NOTES.md`.
   - An empty state.
   - The e2e harness arrives here: WebdriverIO + `@wdio/tauri-service` + the fake
     `claude`.
-- [ ] **3. Click to attach, with a PTY pool.**
+- [x] **3. Click to attach, with a PTY pool.** Shipped 2026-09-28.
   - One PTY and one xterm instance per opened session; switching never reattaches.
   - A detached PTY shows "Detached — click to reattach".
   - A session that vanishes from the list closes its PTY.
@@ -101,6 +101,11 @@ Both slices shipped (below). The results and the verdict are in `NOTES.md`.
   slice 2).
 - [ ] **Branch name and PR status colors** on the badge, once the thread view is reading
   transcripts anyway.
+- [ ] **Keep sidebar rows still when a session is attached.** Rows sort newest first
+  by `startedAt`, and attaching a background session changed the order in the running
+  app, so the list moved under the pointer between two clicks (`NOTES.md`, *Chapter 2,
+  slice 3*). Needs a stable order: first seen, or by name. Decide before chapter 3
+  adds rows.
 - [ ] **An e2e claim for the sidebar's load path.** Only an incidental one covers
   `sessions_snapshot` today (`NOTES.md`, *Chapter 2, slice 2, session B*). A claim
   that reloads the page and sees the current list without the fake changing would
@@ -113,6 +118,11 @@ gate on merge instead of push. See `PLAN-sessions.md` → *Chosen*.)
 
 ## Shipped
 
+- 2026-09-28: chapter 2, slice 3: click to attach, with a pool of panes. Attach runs
+  in the session's `cwd`; ← and Ctrl+Z detach; a vanished session's PTY closes; quit
+  leaves no attach; an LRU cap of 6 within the budget (893 MiB, ≤ 2% CPU). Items 13–18,
+  20 and 22 pass under `npm run e2e`, each spec proved red by a break; 15, 19 and 21
+  were also verified against real `claude`. The results are in `NOTES.md`.
 - 2026-09-27: chapter 2, slice 2: the sidebar. Repo groups (disambiguated,
   collapsible, counted), rows with a state dot, name and `waitingFor`, dimmed
   terminal-tab rows, and an empty state. Items 9–12 pass under `npm run e2e`, with

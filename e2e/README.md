@@ -35,15 +35,37 @@ when nothing changed.
 
 - **One app runs for the whole suite.** The service launches it once. A spec sets what
   the fake answers and waits for the app to poll it; it never relaunches the app.
-- **`helpers/fake-claude.ts`** is a TS port of `src-tauri/src/testutil.rs`'s fake. It
-  answers `agents --json --all` with the file `out`, and logs `poll` per run (any other
-  arguments log `unexpected: …`). The app runs its `claude` children with a clean
-  environment, so the fake reads files beside itself, never env vars.
+- **`helpers/fake-claude.ts`** is a TS port of `src-tauri/src/testutil.rs`'s fake. The
+  app runs its `claude` children with a clean environment, so the fake reads files
+  beside itself, never env vars. It answers three commands and logs each one (any other
+  arguments log `unexpected: …`):
+  - `agents --json --all` prints the file `out` and logs `poll`.
+  - `attach <id>` runs `tty.pl`, a Perl keylogger. It logs `attach <id> pid=<n>
+    cwd=<dir>` and turns on mouse and focus reports, as Claude's TUI does. Then it logs
+    every byte it reads, as `keys <id> <pid> <hex>`.
+    - Ctrl+Z prints `[detached from <id>]`, logs `detach`, and exits 0.
+    - ← logs `agents pid=<n>`, then execs `claude agents` **in the same pid**, as the
+      real attach does (`NOTES.md`, *← is an `exec`*). The log comes first because
+      the app can hang the pid up before agent view has run a line.
+  - `agents` (agent view) repaints an 8KB screen every 10ms. It answers a hangup by
+    writing 32KB before it exits, as the real one does, so it only exits if the app
+    keeps reading the PTY after the hangup (`NOTES.md`, slice 3, *the reader stopped
+    reading*).
 - **`helpers/app.ts`** is what specs import:
   - `show(fixture)` sets the answer, touches the watched directory, and waits for the
     app to have polled it.
   - `fake.setOut`, `fake.touch`, `fake.polls`, and `nextPoll(timeoutMs)` returns how
     long the next poll took. Use them for timing claims.
+  - `attachable(id, { repo?, name? })` is an entry for `show([...])` that the app can
+    attach. Its `cwd` is a real directory, `fake.repo(repo)`. Ids are letters and
+    digits only; the app refuses anything else.
+  - `fake.attaches(id?)`, `fake.agentViews()` and `fake.keys(id, pid?)` read the log.
+    `fake.running()` reads `ps`: the live `attach` pids by session id, and the live
+    agent-view pids.
+  - `press(...keys)` types into the focused terminal pane: `"ArrowLeft"`, `"Ctrl+Z"`,
+    `"Escape"`, `"Enter"`, or any text. **Don't use `browser.keys()` in a pane.** This
+    driver puts the character code in `keyCode`, so xterm.js reads `x` as `x` plus F9,
+    and Ctrl+Z as Ctrl+F11.
 - **The app polls every 2s**, and within about 100ms of a change to
   `<watched>/sessions/*.json` (`fake.touch()`). After a poll whose list changed, it
   emits `sessions-changed` and the sidebar re-renders.
@@ -53,6 +75,9 @@ when nothing changed.
   - `not.toBeDisplayed()` and `not.toBeExisting()` pass on a locator that never
     matches. Assert the positive first, on the same locator.
   - `snapshot.txt` omits elements with no text, such as a group header's chevron span.
+- **Fixture `cwd`s don't exist**, so a click on one of their sessions shows the "no
+  longer exists" message and attaches nothing. Build attachable lists with
+  `attachable()`.
 - **`fixtures/`** are `claude agents --json --all` outputs:
   - `all-states.json`: every UI state, two repos both named `beta`, and two
     terminal-tab entries (a copy of the Rust fixture).

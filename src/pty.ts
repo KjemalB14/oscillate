@@ -9,12 +9,12 @@ export interface Pty {
   kill(): void;
 }
 
-/** The session to attach to, passed in by hand (`OSCILLATE_ATTACH`); null runs a shell. */
-export const initialSession = () => invoke<string | null>("initial_session");
-
-/** Spawns `claude attach <session>`, or the login shell when `session` is null. */
+/**
+ * Spawns `claude attach <session>` in the session's own `cwd`. Rejects with a message
+ * when that directory is gone, or the session already has a PTY (invariant 3).
+ */
 export async function spawnPty(
-  session: string | null,
+  session: string,
   cols: number,
   rows: number,
   onData: (bytes: Uint8Array) => void,

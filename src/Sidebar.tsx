@@ -18,13 +18,26 @@ function stateWords(s: Session): string {
   return s.state === "unknown" && s.rawState ? `unknown (${s.rawState})` : STATE_WORDS[s.state];
 }
 
-function SessionRow({ session }: { session: Session }) {
+interface RowProps {
+  session: Session;
+  selected: boolean;
+  onSelect: (id: string) => void;
+}
+
+function SessionRow({ session, selected, onSelect }: RowProps) {
   const terminalTab = session.state === "terminal-tab";
   const detail = terminalTab ? "run /bg to open here" : session.waitingFor;
+  const id = session.id;
   return (
     <li
       className={`session state-${session.state}`}
       aria-disabled={terminalTab || undefined}
+      aria-current={selected || undefined}
+      tabIndex={id ? 0 : undefined}
+      onClick={id ? () => onSelect(id) : undefined}
+      onKeyDown={
+        id ? (e) => (e.key === "Enter" || e.key === " ") && onSelect(id) : undefined
+      }
       title={terminalTab ? "Started in a terminal tab. Run /bg there to open it here." : undefined}
     >
       <span className="dot" role="img" aria-label={stateWords(session)} title={stateWords(session)} />
@@ -34,7 +47,14 @@ function SessionRow({ session }: { session: Session }) {
   );
 }
 
-export function Sidebar({ sessions }: { sessions: Session[] | null }) {
+interface SidebarProps {
+  sessions: Session[] | null;
+  /** The id of the session whose pane is showing. */
+  selected: string | null;
+  onSelect: (id: string) => void;
+}
+
+export function Sidebar({ sessions, selected, onSelect }: SidebarProps) {
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
   const toggle = (key: string) =>
     setCollapsed((prev) => {
@@ -76,7 +96,12 @@ export function Sidebar({ sessions }: { sessions: Session[] | null }) {
           {open && (
             <ul className="sessions" id={listId}>
               {group.sessions.map((s) => (
-                <SessionRow session={s} key={s.key} />
+                <SessionRow
+                  session={s}
+                  key={s.key}
+                  selected={s.id !== null && s.id === selected}
+                  onSelect={onSelect}
+                />
               ))}
             </ul>
           )}

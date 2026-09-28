@@ -124,10 +124,14 @@ what slice 1 or slice 3 builds:
 
 ## Still open
 
-- **Whether ← is a real `exec` or a spawned child.** Confirmed at the start of slice 3.
-  It changes how detection finds the process, not the decision.
-- **The xterm instance's own cost in WebContent.** Measured in slice 3. It can lower
-  the cap, never raise the budget.
+- ~~**Whether ← is a real `exec` or a spawned child.**~~ **Settled 2026-09-27: a real
+  `exec` in the same pid.** The attach pid's argv becomes `<claude.exe> agents` about
+  275ms after the key. So detection watches that one pid's argv
+  (`sysctl(KERN_PROCARGS2)`), matching the arguments and not `argv[0]`, which becomes
+  the resolved binary. `NOTES.md`, *Chapter 2, slice 3: ← is an `exec`*.
+- ~~**The xterm instance's own cost in WebContent.**~~ **Measured 2026-09-28: about
+  67 MiB per pane** (WebContent 36 → 436 MiB with six panes). Six idle panes total
+  893 MiB, under the 1 GiB budget, so the cap stays 6.
 
 ## Acceptance criteria
 
@@ -135,7 +139,10 @@ what slice 1 or slice 3 builds:
 Slice 2 shipped 2026-09-27: items 9–12 pass under `npm run e2e`, with specs by
 `e2e-author`, each proved red by a break (`NOTES.md`, *Chapter 2, slice 2, session B*).
 The load path (`sessions_snapshot`) is covered only incidentally, which is noted there.
-Slices 3–4 are not started.
+Slice 3 shipped 2026-09-28. Items 13–18, 20 and 22 pass under `npm run e2e`, with specs
+by `e2e-author`, each proved red by a break. Items 13–15, 19 and 21 were checked against
+real `claude` in the release app (`NOTES.md`, *Chapter 2, slice 3*). Slice 4 is not
+started.
 
 Slice 1 is checked by `cargo test` against fixture JSON and a fake `claude`. Slices 2
 and 3 use the e2e harness where it can drive the scenario, and otherwise the running
@@ -253,3 +260,33 @@ hand. Results go in `NOTES.md` under *Verified in the running app*.
      - The load path: `sessions_snapshot`.
   4. Commit, then run `npm run e2e` on a clean tree, which records it green (item 12).
   5. Merge through the gate.
+
+## Slice 3: implementation (2026-09-28)
+
+- **Rust (`pty.rs`).**
+  - `pty_spawn` takes only a session id. Rust takes the `cwd` from the last good poll
+    and refuses one that no longer exists. `OSCILLATE_ATTACH` and the login-shell
+    pane are gone.
+  - A 250ms watch reads each attach pid's argv (`KERN_PROCARGS2`). It arms once it
+    has seen `attach <id>`, and SIGKILLs the group of a child that has since become
+    anything else: agent view, after ←. A child that outlives its hangup by 2s gets
+    SIGKILL.
+  - A closing PTY stays in the table until it is reaped, so a reattach waits (up to
+    3s) rather than overlapping it (invariant 3). Its reader keeps reading until EOF,
+    and drops the output.
+  - The poll callback closes the PTY of every session that is no longer listed.
+- **Frontend.**
+  - Sidebar rows select, with `aria-current`.
+  - `App` keeps one `TerminalPane` per opened session, stacked, with hidden ones at
+    `visibility: hidden`. It evicts the least recently viewed pane beyond 6
+    (`PANE_CAP`).
+  - A pane shows "Detached — click to reattach" (or "Couldn't attach: …") as a DOM
+    button. A click on it, or on the row, reattaches.
+  - A pane holds keys typed while attaching, and focuses its terminal once live. It
+    resets xterm's input modes on exit.
+- **Harness.**
+  - The fake `claude` answers `attach <id>` with a Perl keylogger that execs agent
+    view in the same pid on ←. The agent view repaints continuously and writes when
+    hung up, as the real one does.
+  - New helpers: `attachable()`, `fake.repo()`, `fake.attaches()`, `fake.agentViews()`,
+    `fake.keys()`, `fake.running()` and `press()` (`e2e/README.md`).

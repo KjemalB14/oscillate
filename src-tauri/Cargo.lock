@@ -2695,6 +2695,7 @@ dependencies = [
 name = "oscillate"
 version = "0.1.0"
 dependencies = [
+ "libc",
  "notify",
  "portable-pty",
  "serde",
