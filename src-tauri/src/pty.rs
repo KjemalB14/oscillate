@@ -90,6 +90,9 @@ struct Pty {
     flow: Arc<Flow>,
     /// When it was told to go. It stays in `live` until its child is reaped.
     closing: Option<Instant>,
+    /// The watch has seen the child as `attach <id>`. Until then its argv may still be the
+    /// app's own: the spawn can return before the fork has exec'd.
+    armed: bool,
 }
 
 impl Pty {
@@ -218,7 +221,16 @@ pub fn pty_spawn(
     let id = ptys.next_id.fetch_add(1, Ordering::Relaxed);
     live.insert(
         id,
-        Pty { session, pid, writer, master: pair.master, killer, flow: flow.clone(), closing: None },
+        Pty {
+            session,
+            pid,
+            writer,
+            master: pair.master,
+            killer,
+            flow: flow.clone(),
+            closing: None,
+            armed: false,
+        },
     );
     drop(live);
 
@@ -319,8 +331,8 @@ pub fn close_unlisted(ptys: &Ptys, sessions: &[Session]) {
     }
 }
 
-/// Starts the thread that, every `WATCH_EVERY`, detaches a child that is no longer
-/// `claude attach <id>` (← exec'd agent view), and SIGKILLs one that has outlived its
+/// Starts the thread that, every `WATCH_EVERY`, detaches a child that was `claude attach
+/// <id>` and no longer is (← exec'd agent view), and SIGKILLs one that has outlived its
 /// hangup by `KILL_AFTER`.
 pub fn watch(app: AppHandle) {
     thread::Builder::new()
@@ -332,8 +344,7 @@ pub fn watch(app: AppHandle) {
                 let Some(pid) = pty.pid else { continue };
                 match pty.closing {
                     None => {
-                        // `None` is a child already gone; its reader reports the exit.
-                        if argv(pid).is_some_and(|argv| !still_attached(&argv, &pty.session)) {
+                        if left_attach(&mut pty.armed, argv(pid).as_deref(), &pty.session) {
                             pty.close();
                         }
                     }
@@ -343,6 +354,20 @@ pub fn watch(app: AppHandle) {
             }
         })
         .expect("spawn the pty watch");
+}
+
+/// Whether the child has stopped being `attach <session>`, having been it: `armed` records
+/// that it was. A child that is gone (`None`) is left to its reader, and one that hasn't
+/// exec'd yet still has the app's own argv, which isn't a detach.
+fn left_attach(armed: &mut bool, argv: Option<&[String]>, session: &str) -> bool {
+    match argv {
+        None => false,
+        Some(argv) if still_attached(argv, session) => {
+            *armed = true;
+            false
+        }
+        Some(_) => *armed,
+    }
 }
 
 /// Whether `argv` is still `… attach <session>`. Only the arguments are compared: after
@@ -412,6 +437,18 @@ mod tests {
         assert!(!still_attached(&args(&["/x/claude-code/bin/claude.exe", "agents"]), id));
         assert!(!still_attached(&args(&["/x/bin/claude", "attach", "other"]), id));
         assert!(!still_attached(&args(&[]), id));
+    }
+
+    #[test]
+    fn the_watch_arms_only_once_it_has_seen_the_attach() {
+        let id = "abc123";
+        let mut armed = false;
+        // Before the fork has exec'd, the child's argv is the app's own.
+        assert!(!left_attach(&mut armed, Some(&args(&["/x/oscillate"])), id));
+        assert!(!left_attach(&mut armed, Some(&args(&["/x/claude", "attach", id])), id));
+        assert!(armed);
+        assert!(!left_attach(&mut armed, None, id));
+        assert!(left_attach(&mut armed, Some(&args(&["/x/claude.exe", "agents"])), id));
     }
 
     #[test]
