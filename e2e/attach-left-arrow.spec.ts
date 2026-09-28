@@ -125,24 +125,29 @@ describe('← detaches: shows "Detached — click to reattach" in time, then cle
       let shownAt: number | null = null;
       const pressAt = Date.now();
       await press("ArrowLeft");
-      await browser.waitUntil(
-        async () => {
-          if (appearAt === null && fake.agentViews().length > beforeAgentViews) appearAt = Date.now();
-          if (appearAt !== null && (await detachButton(id).isExisting())) {
-            shownAt = Date.now();
-            return true;
-          }
-          return false;
-        },
-        {
-          timeout: 8000,
-          interval: 10,
-          timeoutMsg:
-            appearAt === null
-              ? `try ${attempt}: agent view never appeared after ←`
-              : `try ${attempt}: agent view appeared but the "Detached" message never showed`,
-        },
-      );
+      try {
+        await browser.waitUntil(
+          async () => {
+            if (appearAt === null && fake.agentViews().length > beforeAgentViews) appearAt = Date.now();
+            if (appearAt !== null && (await detachButton(id).isExisting())) {
+              shownAt = Date.now();
+              return true;
+            }
+            return false;
+          },
+          { timeout: 8000, interval: 10 },
+        );
+      } catch {
+        // `timeoutMsg` is built once, when the options object is created, while
+        // `appearAt` is still null -- so it would always say "never appeared", even
+        // when it did and only the message was slow. Built here instead, after the
+        // wait has actually finished, `appearAt` reflects what really happened.
+        throw new Error(
+          appearAt === null
+            ? `try ${attempt}: agent view never appeared after ←`
+            : `try ${attempt}: agent view appeared but the "Detached" message never showed`,
+        );
+      }
       pressToAppear.push(appearAt! - pressAt);
       latencies.push(shownAt! - appearAt!);
     }

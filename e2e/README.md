@@ -47,7 +47,10 @@ when nothing changed.
     - ← logs `agents pid=<n>`, then execs `claude agents` **in the same pid**, as the
       real attach does (`NOTES.md`, *← is an `exec`*). The log comes first because
       the app can hang the pid up before agent view has run a line.
-  - `agents` (agent view) waits to be hung up.
+  - `agents` (agent view) repaints an 8KB screen every 10ms. It answers a hangup by
+    writing 32KB before it exits, as the real one does, so it only exits if the app
+    keeps reading the PTY after the hangup (`NOTES.md`, slice 3, *the reader stopped
+    reading*).
 - **`helpers/app.ts`** is what specs import:
   - `show(fixture)` sets the answer, touches the watched directory, and waits for the
     app to have polled it.

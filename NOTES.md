@@ -9,6 +9,169 @@ Newest entries at the top.
 
 ---
 
+## 2026-09-28 — Chapter 2, slice 3: click to attach, with a pool of panes
+
+Slice 3 is built, specified, broken, verified in the running app, and merged. The
+implementation summary is in `PLAN-sessions.md`, below the marker. Items are numbered
+as in the plan.
+
+### The specs
+
+`e2e-author` wrote one spec per item, each with its criterion quoted verbatim, one
+dispatch at a time: `attach-cwd` (13), `attach-switch` (14), `attach-left-arrow` (15),
+`attach-ctrl-z` (16), `attach-stress` (17), `attach-vanish` (18), `attach-lru` (20) and
+`attach-dead-pane` (22). Items 19 and 21 can't be driven by the harness and were checked
+in the running app. The suite is 26 claims.
+
+Reading each spec before accepting it found three that proved less than they said.
+Each went back to the author with the reason:
+- **Item 15's ten tries were one try, ten times.** Each ← came a nearly constant time
+  after the previous detach, so every try hit the 250ms watch at the same phase. A
+  600ms watch stayed green. A seeded 0–1s delay before each ← fixed it, and the 600ms
+  break now goes red. **Rule:** a repeated timing claim needs jitter, or its samples
+  aren't independent.
+- **A page-global `$("button*=Detached")`.** Hidden panes stay mounted, so it could
+  match another pane's message and make item 15's latency vacuous. Now it is scoped to
+  the pane.
+- **A `timeoutMsg` built before the wait.** It said "agent view never appeared" on
+  every timeout, including one where agent view had appeared.
+
+The authors' workarounds were findings too. Each was fixed in the app, not accepted
+in the spec:
+- **Focus was lost after a reattach.** The button unmounted under the click, and focus
+  fell to `<body>`. The spec had clicked into the terminal before typing, as a user
+  would have had to. Now the pane focuses its terminal once live.
+- **Keys typed while attaching were dropped.** `pty` was set only once `pty_spawn`
+  resolved. The pane now holds them and sends them once live.
+
+### Four app bugs, and how each surfaced
+
+1. **The watch killed a fresh attach before its exec** (surfaced as a flaky LRU spec,
+   about one failed claim per run).
+   - A fresh pane showed "Detached" and the fake never logged its attach.
+   - Temporary logging showed the watch reading the child's argv in the spawn's own
+     millisecond and seeing **the app's own argv**. portable-pty's spawn can return
+     before the forked child has exec'd.
+   - Fix: the watch arms only once it has seen `attach <id>` (`left_attach`, unit
+     tested). Then 48/48 LRU claims passed.
+2. **A closing PTY's child could never be reaped** (only real `claude` showed it; see
+   *Verified in the running app*).
+   - The reader stopped reading at close. Real agent view answers SIGHUP by writing,
+     and blocks on a full tty queue.
+   - The 2s SIGKILL escalation then left it stuck in exit (`ps` STAT `E`) for good. It
+     was waiting for output to drain from a master nobody read. So no Detached, the
+     reader thread blocked in `wait4`, and a reattach was refused as "still detaching".
+   - A scripted PTY confirmed it: hung up and not read, agent view was still alive
+     after 4s. Read, it exited in 0.46s; SIGKILLed, it exited in 0.02s. Plain `perl` in
+     the same spot exits in 0.6s, since macOS times out the drain. The difference is
+     agent view's hangup handler.
+   - Fix: the reader reads until EOF and drops output after close.
+   - The fake only reproduced it once its agent view kept repainting **and** wrote on
+     hangup. Painting once wasn't enough, because the app was still reading then. With
+     both, item 15's spec went red before the fix.
+3. **← was too slow on real `claude`.** Hung up, agent view takes about 0.5s to exit
+   even when read. 5 of 10 tries took 527–784ms from exec to gone.
+   - Fix: the watch SIGKILLs agent view's group. It's only a viewer, and Oscillate
+     resets xterm's modes itself.
+   - After: 51–233ms, 10 out of 10.
+   - Every other close (quit, eviction, vanish, the pane's own) keeps SIGHUP. That is
+     a real `claude attach`, whose detach matters.
+   - **Rejected:** showing "Detached" at close rather than at reap. It's more state,
+     and a reattach has to wait for the reap anyway (invariant 3).
+4. **Output before `pty_spawn` resolved was never acked** (found by reading the code).
+   `flushAck` zeroed the count while the PTY's id was still unknown, which leaked
+   in-flight bytes toward the 1 MiB backpressure. No spec covers it.
+
+### The harness
+
+- **This WebDriver sends wrong `keyCode`s.** `browser.keys("x")` reached xterm.js as
+  `x` plus `CSI 20~` (F9), and Ctrl+Z as `CSI 23;5~`: the character code lands in
+  `keyCode`. `press()` dispatches correct keydowns to the focused pane instead.
+- **`browser.action('wheel')` isn't forwarded at all.** Item 22 dispatches a
+  `WheelEvent` itself.
+- **The fake logs agent view at the exec, not after it.** The app hangs the pid up
+  before the exec'd Perl has run a line, and item 15 failed until the log line moved.
+- **`fake.repo()` resolves the path** (`/private/var`), since `getcwd` does.
+- **Full-suite flakes under load were mostly bug 1.** The author saw rotating failures
+  while building and running at the same time, with a load average of 5–7. After the
+  fix, the suite was green 3/3 on a quiet machine.
+- **Cost:** the author's dispatches ran 3–64 minutes each. The longest were item 15's
+  first round (64) and item 22 (45).
+
+### The breaks
+
+Each break was patched in, run against the full suite, and restored. The table is
+the final code's:
+
+| Break | Red |
+|---|---|
+| `Pty::close` never signals | 3: items 15 and 18 (both) |
+| Attach in the app's cwd | 1: item 13's `lsof` claim |
+| No check for a missing cwd | 1: item 13's removed-dir claim |
+| Only the selected pane mounted | 5: items 14, 18 ×2 and 20 ×2 |
+| The watch never detaches | 2: items 15 and 17 |
+| The watch every 600ms | 1: item 15 (green before the jitter fix) |
+| No Detached message on exit | 4: items 15, 16 ×2 and 22 |
+| Every row click reattaches; old attach never killed | 4: items 17 and 20 ×3 |
+| The same, plus Rust's invariant-3 guard removed | 5: items 14, 17 and 20 ×3 (17 sees two pids for one id) |
+| Rust closes no unlisted PTYs, frontend keeps their panes | 6: items 18 ×2, 20 ×3 and 10 |
+| LRU evicts the first opened | 2: item 20 |
+| LRU evicts the most recently viewed other pane | 3: item 20 |
+| The cap is 7 | 3: item 20 |
+| Dead input held and sent to the next attach | 1: item 22 |
+| Reader stops at close **and** agent view gets SIGHUP | 2: items 15 and 17 |
+
+Six stayed green, and each is understood:
+- **Rust never closes unlisted PTYs** (the frontend still unmounts). The unmount kills
+  the PTY too, so item 18 holds on either layer. The pair together goes red. Rust's
+  layer alone isn't proved.
+- **The visible pane can be evicted.** This is equivalent to the real code: the visible
+  pane is always the most recently viewed, so LRU never picks it. "Never the visible
+  one" follows from LRU itself.
+- **Dead input held, first version.** Equivalent: `start()` reset the buffer anyway.
+  The second version survives the reset and goes red.
+- **The reader stops at close**, and **agent view gets SIGHUP**, each alone. Against
+  the fake, either fix is enough: SIGKILL skips the hangup handler, and draining lets
+  it finish. Together they go red.
+  - Against real `claude`, draining alone was measured too slow (5 of 10 over 500ms).
+    SIGKILL alone wasn't measured in the app.
+  - The drain stays for every SIGHUP close (quit, eviction, vanish). There a real
+    attach is hung up, and whether it writes on hangup is unverified.
+- **No input-mode reset on exit.** Not needed for item 22's 0 bytes: a dead pane has
+  no PTY to write to, and a reattach resets the terminal. The reset only keeps a dead
+  pane's mouse doing selection instead of reports. No claim covers it.
+
+### Verified in the running app
+
+Checked on the release build against real background sessions: six throwaway
+`claude --bg --permission-mode plan` sessions in `~/Github Repos`, `claude rm`'d
+afterwards. The tools were `drive-window` (with `point X Y` and `PANE_LEFT` added),
+`ps`, `lsof` and `measure-footprint`.
+
+| # | Item | Result |
+|---|------|--------|
+| 13 | Attach in the session's cwd | **Pass.** `lsof -d cwd` on each attach shows `~/Github Repos`, the sessions' `cwd`. The removed-directory half is covered only by e2e. |
+| 14 | Switching never reattaches | **Pass.** Five attach pids were unchanged across A → B → A, and no recap appeared in A. |
+| 15 | ← detaches | **Pass, after bugs 2 and 3.** 10 out of 10: exec → gone in 51–233ms, a reattach through the Detached button each time, and no agent view left behind. Before the fixes: try 3 of 10 stuck in exit, then 5 of 10 over 500ms. |
+| 19 | Quit leaves no attach | **Pass.** Three attaches, then Cmd+Q: 0 left 200ms later, and every session still listed. The same held on the build with the stuck PTY: the quit released it. |
+| 21 | Budget | **Pass.** Six idle panes: **893 MiB, ≤ 2.0% CPU**, steady over 3 minutes of 30–60s samples. App 28, WebKit GPU 31 / Networking 6 / WebContent 436, and six attaches at 65–68 each. With no panes, WebContent was 36, so **each xterm pane costs about 67 MiB**. |
+
+- **`claude attach` started the supervisor daemon as its own child.** The daemon had
+  exited while idle. It leads its own process group and session, so it outlives the
+  attach, and Oscillate's `killpg` never reaches it.
+  - `measure-footprint` counted it and its fourteen hosts and spares as the app's
+    (2.19 GiB). The script now stops at a grandchild that leads its own process group.
+- **Sidebar rows re-sorted when sessions were attached.** Rows are newest first by
+  `startedAt`, and after attaches the probes' order changed, so a click by position
+  opened the wrong session. Why `startedAt` moved isn't verified. In `BACKLOG.md`.
+- **Agent view ignores a lone SIGHUP while its output isn't read.** An orphaned one
+  stayed alive after `kill -HUP`, which is bug 2 from the outside.
+- **A screenshot caught another app in front** while the author was at the Mac. It
+  was deleted, and the GUI checks waited until they stepped away. Driving the GUI
+  needs the Mac to be idle.
+
+---
+
 ## 2026-09-27 — Chapter 2, slice 3: ← is an `exec` in the same pid
 
 This settles `PLAN-sessions.md`'s first *Still open* item before any detection was built.

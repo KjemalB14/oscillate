@@ -10,7 +10,9 @@
  *   (`keys <id> <pid> <hex>`). Ctrl+Z prints `[detached from <id>]`, logs `detach`, and
  *   exits 0. ← logs `agents pid=<n>` and execs `claude agents` in the same pid, as the
  *   real attach does.
- * - `agents`, agent view: waits for its hangup.
+ * - `agents`, agent view: repaints an 8KB screen every 10ms, and answers a hangup by
+ *   writing 32KB before it exits, as the real one does, so it exits only if the app
+ *   keeps reading.
  *
  * One fake serves the whole run, because the service launches one app: the config
  * creates it and exports its paths in `process.env`, which the workers inherit.
@@ -173,8 +175,16 @@ sub say_log { open my $l, ">>", "$d/log" or die; print $l "@_\n"; close $l }
 STDOUT->autoflush(1);
 system("stty raw -echo");
 if ($ARGV[0] eq "agents") {
-    print "fake agent view\r\n";
-    1 while sysread(STDIN, my $buf, 4096);
+    # Like the real one, it answers a hangup by writing before it exits (restoring the
+    # terminal), so it only gets out once the app reads what it wrote.
+    my $screen = ("fake agent view " . ("x" x 60) . "\r\n") x 100;
+    $SIG{HUP} = sub { print $screen x 4; exit 0 };
+    while (1) {
+        print $screen;
+        my $in = "";
+        vec($in, fileno(STDIN), 1) = 1;
+        if (select($in, undef, undef, 0.01)) { sysread(STDIN, my $buf, 4096) or exit 0 }
+    }
     exit 0;
 }
 my $id = $ARGV[1];

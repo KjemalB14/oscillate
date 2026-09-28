@@ -6,7 +6,9 @@ Processes counted:
   app       the Tauri binary (found by --pid, or pgrep for target/*/oscillate or Oscillate.app)
   webkit    WebKit GPU/Networking/WebContent helpers started after the app with the same
             responsible pid (they are launchd children, so this is how they're tied back)
-  pty       every descendant of the app: shells, `claude attach`, whatever runs in them
+  pty       every descendant of the app: shells, `claude attach`, whatever runs in them. Not
+            a detached daemon: a grandchild that leads its own process group, and its subtree.
+            `claude attach` can start Claude's supervisor daemon, which is not the app's cost.
 
 Memory is phys_footprint (what Activity Monitor calls Memory) from /usr/bin/footprint.
 CPU is the average % over the sample window, from cumulative CPU time.
@@ -21,12 +23,13 @@ def fail(msg):
 
 
 def ps_table():
-    out = subprocess.run(["ps", "-axo", "pid=,ppid=,etime=,time=,comm="],
+    out = subprocess.run(["ps", "-axo", "pid=,ppid=,pgid=,etime=,time=,comm="],
                          capture_output=True, text=True, check=True).stdout
     rows = {}
     for line in out.splitlines():
-        pid, ppid, etime, cpu, comm = line.split(None, 4)
-        rows[int(pid)] = dict(ppid=int(ppid), age=seconds(etime), cpu=seconds(cpu), comm=comm)
+        pid, ppid, pgid, etime, cpu, comm = line.split(None, 5)
+        rows[int(pid)] = dict(ppid=int(ppid), pgid=int(pgid), age=seconds(etime), cpu=seconds(cpu),
+                              comm=comm)
     return rows
 
 
@@ -80,6 +83,8 @@ def main():
         parent = frontier.pop()
         for pid, r in rows.items():
             if r["ppid"] == parent and pid not in procs:
+                if parent != app and r["pgid"] == pid:
+                    continue  # a detached daemon, e.g. the one `claude attach` started
                 procs[pid] = "pty"
                 frontier.append(pid)
 

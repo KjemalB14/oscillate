@@ -52,10 +52,10 @@ handoff points into these files; it never copies their reasoning.
 ## Current state
 
 **Chapter 1, *The terminal holds*, is closed: go.** A Tauri 2 window runs xterm.js over
-`portable-pty` (`src-tauri/src/pty.rs`, `src/TerminalPane.tsx`). Its one pane attaches
-to a background session through the resolver (`claude::resolver()`,
-`src-tauri/src/claude.rs`), and all 14 acceptance items were verified against Ghostty.
-The verdict and what it didn't prove are in `NOTES.md` → *Chapter 1 closed: go*.
+`portable-pty` (`src-tauri/src/pty.rs`, `src/TerminalPane.tsx`), attaching background
+sessions through the resolver (`claude::resolver()`, `src-tauri/src/claude.rs`). All 14
+acceptance items were verified against Ghostty. The verdict and what it didn't prove
+are in `NOTES.md` → *Chapter 1 closed: go*.
 
 **Chapter 2 is open** (`PLAN-sessions.md`). Slice 1, the session model, is shipped:
 - The resolver is cached and warmed at launch.
@@ -66,13 +66,23 @@ The verdict and what it didn't prove are in `NOTES.md` → *Chapter 1 closed: go
   `sessions.rs`.
 
 **Slice 2, the sidebar, is shipped** (merged 2026-09-27; items 9–12 green).
-- `src/Sidebar.tsx` renders the list grouped by repo (`src/groups.ts`), beside the one
-  terminal pane. Clicking a session does nothing yet; that is slice 3.
+- `src/Sidebar.tsx` renders the list grouped by repo (`src/groups.ts`).
 - `e2e/sidebar-*.spec.ts` cover it. Specs are written by `e2e-author`, in a session
   **started from this directory**. A session started anywhere else loads neither the
   agent nor the hooks (`NOTES.md`, *Chapter 2, slice 2*).
 
-**Slice 3, click to attach with a PTY pool, is next.** It is not started.
+**Slice 3, click to attach with a pool of panes, is shipped** (merged 2026-09-28; items
+13–22 pass, with 15, 19 and 21 also checked against real `claude`).
+- A row click attaches the session in its own `cwd`. Each opened session keeps its pane
+  and PTY (`src/App.tsx`), up to 6, evicting the least recently viewed.
+- ← turns the attach into agent view in the same pid. `pty.rs`'s watch sees the argv
+  change and kills it, and the pane shows "Detached — click to reattach". Ctrl+Z
+  detaches the same way.
+- A closing PTY counts against its session until reaped, and is read until EOF
+  (`NOTES.md`, *Chapter 2, slice 3*).
+- `e2e/attach-*.spec.ts` cover it, against a fake `attach` (`e2e/README.md`).
+
+**Slice 4, ship to the Dock, is next.** It is not started.
 
 - Dev: `npm run tauri dev`. Release binary: `npx tauri build --no-bundle`.
 - Tests: `cargo test` in `src-tauri`, against fixtures and a fake `claude`
@@ -81,8 +91,6 @@ The verdict and what it didn't prove are in `NOTES.md` → *Chapter 1 closed: go
   `OSCILLATE_CLAUDE_DIR` points the watch at). **Specs (`e2e/*.spec.ts`) are written by
   the `e2e-author` agent only**; a hook refuses everyone else. The rest of `e2e/` is the
   harness. See `e2e/README.md`.
-- `OSCILLATE_ATTACH=<id>` makes the pane run `claude attach <id>`; without it, the pane
-  runs a login shell.
 - `@xterm/*` is pinned to 6.1.0 betas for the kitty keyboard protocol. Don't
   downgrade to 6.0: Esc Esc stops working in Claude.
 - Rust lives in `~/.cargo/bin`.

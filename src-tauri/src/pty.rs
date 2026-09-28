@@ -98,13 +98,18 @@ struct Pty {
 impl Pty {
     /// Hangs up the child, which for `claude attach` is a detach. Idempotent.
     fn close(&mut self) {
+        self.close_with(libc::SIGHUP);
+    }
+
+    /// Ends the child with `sig`. Idempotent: only the first close signals.
+    fn close_with(&mut self, sig: libc::c_int) {
         if self.closing.is_some() {
             return;
         }
         self.closing = Some(Instant::now());
         self.flow.close();
         match self.pid {
-            Some(pid) => signal(pid, libc::SIGHUP),
+            Some(pid) => signal(pid, sig),
             None => {
                 let _ = self.killer.kill();
             }
@@ -259,15 +264,19 @@ pub fn pty_spawn(
         .name(format!("pty-{id}-read"))
         .spawn(move || {
             let mut buf = vec![0u8; READ_CHUNK];
-            while flow.wait_for_room() {
+            // After a close the PTY is still read until EOF, and the output dropped. Agent view
+            // answers a hangup by writing, and can't exit while nobody reads it: not even
+            // SIGKILL gets it past a full tty queue (NOTES.md, chapter 2 slice 3).
+            let mut forwarding = true;
+            loop {
+                forwarding = forwarding && flow.wait_for_room();
                 match reader.read(&mut buf) {
                     Ok(0) | Err(_) => break,
-                    Ok(n) => {
+                    Ok(n) if forwarding => {
                         flow.sent(n);
-                        if tx.send(buf[..n].to_vec()).is_err() {
-                            break;
-                        }
+                        forwarding = tx.send(buf[..n].to_vec()).is_ok();
                     }
+                    Ok(_) => {}
                 }
             }
             // All output reaches the webview before the exit notice.
@@ -344,8 +353,10 @@ pub fn watch(app: AppHandle) {
                 let Some(pid) = pty.pid else { continue };
                 match pty.closing {
                     None => {
+                        // Agent view is only a viewer, and on a hangup it takes ~0.5s to exit,
+                        // so it is killed outright. A real attach keeps its hangup.
                         if left_attach(&mut pty.armed, argv(pid).as_deref(), &pty.session) {
-                            pty.close();
+                            pty.close_with(libc::SIGKILL);
                         }
                     }
                     Some(since) if since.elapsed() > KILL_AFTER => signal(pid, libc::SIGKILL),

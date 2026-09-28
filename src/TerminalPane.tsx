@@ -121,7 +121,9 @@ export function TerminalPane({ session, label, visible, attempt, onStatus, onRea
     const flushAck = () => {
       clearTimeout(ackTimer);
       ackTimer = undefined;
-      mine?.ack(unacked);
+      // Output can arrive before the PTY's id does; it is acked once the id is known.
+      if (!mine) return;
+      mine.ack(unacked);
       unacked = 0;
     };
 
@@ -163,6 +165,7 @@ export function TerminalPane({ session, label, visible, attempt, onStatus, onRea
       mine = p;
       pty.current = p;
       p.resize(t.cols, t.rows);
+      flushAck();
       for (const bytes of pending.current ?? []) p.write(bytes);
       pending.current = null;
       onStatus(session, "live");
