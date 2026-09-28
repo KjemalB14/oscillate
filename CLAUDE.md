@@ -73,9 +73,10 @@ and what it didn't prove are in `NOTES.md` → *Chapter 2 closed*.
   its icon drawn in `src-tauri/icons/app-icon.svg`. Launched from Finder, it finds
   `claude` through the login shell. Daily use and feedback start here.
 
-**Chapter 3, start and end sessions from the app, is next.** It opens with `/decide`,
-which writes its `PLAN-*.md`. Decide the sidebar row order (`BACKLOG.md`, *Later*)
-before it adds rows.
+**Chapter 3, start and end sessions from the app, is open** (decided 2026-09-28).
+`PLAN-new-sessions.md` holds its decisions and acceptance criteria, in four slices:
+frozen row order, "+" and "Add repo…", the trust pane, then Stop and Remove. Slice 1
+is next. **The trust pane's `claude` is never killed by the app** (the plan says why).
 
 - Dev: `npm run tauri dev`. Release binary: `npx tauri build --no-bundle`.
 - Install: quit the app, then `npx tauri build` and `ditto

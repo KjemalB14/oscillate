@@ -28,18 +28,24 @@ Both slices shipped (below). The results and the verdict are in `NOTES.md`.
 
 All four slices shipped (below). The results are in `NOTES.md`.
 
-### Chapter 3 — Start and end sessions from the app
+### Chapter 3 — Start and end sessions from the app: open
 
-- [ ] **1. New session.**
-  - A "+" on a repo group opens a prompt box that runs `claude --bg` in that repo, then
-    selects and attaches the new session.
+Decided 2026-09-28. The decisions, rejections and acceptance criteria are in
+`PLAN-new-sessions.md`.
+
+- [ ] **1. Rows stay still.** Each row keeps the `startedAt` the app first saw, for the
+  life of the app process.
+- [ ] **2. New session.**
+  - A "+" on a repo group opens a prompt box, with a prompt and a permission mode, that
+    runs `claude --bg` in that repo, then selects and attaches the new session.
   - "Add repo…" opens a folder picker, and chosen repos persist in the app's own
-    `repos.json`.
-  - An untrusted repo opens a PTY running interactive `claude` so you can accept trust,
-    then the app retries with the prompt it kept.
-- [ ] **2. Stop and remove.** A context menu runs `claude stop` or `claude rm` after
-  closing the PTY. An `rm` refusal is shown verbatim, with no automatic
-  `--discard-unpushed`.
+    `repos.json`, with "Remove from list" on their group.
+- [ ] **3. The trust pane.** An untrusted repo opens a pane running interactive `claude`
+  so you can accept trust. When it exits, the app retries once with the prompt it kept.
+  The app never kills that process.
+- [ ] **4. Stop and remove.** A context menu runs `claude stop` or `claude rm` after
+  closing the PTY. Only Remove asks for confirmation. An `rm` refusal is shown verbatim,
+  with no `--discard-unpushed`.
 
 ### Chapter 4 — It tells you when it needs you (closes MVP 1)
 
@@ -69,11 +75,6 @@ All four slices shipped (below). The results are in `NOTES.md`.
   slice 2).
 - [ ] **Branch name and PR status colors** on the badge, once the thread view is reading
   transcripts anyway.
-- [ ] **Keep sidebar rows still when a session is attached.** Rows sort newest first
-  by `startedAt`, and attaching a background session changed the order in the running
-  app, so the list moved under the pointer between two clicks (`NOTES.md`, *Chapter 2,
-  slice 3*). Needs a stable order: first seen, or by name. Decide before chapter 3
-  adds rows.
 - [ ] **Check the daemon's PATH when an Oscillate click starts it.** Item 24's daemon
   clause couldn't be triggered, because the daemon was already up, hosting the session
   that ran the check (`NOTES.md`, *Chapter 2, slice 4*). The next time no background
