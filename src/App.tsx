@@ -7,7 +7,7 @@ import { useSessions } from "./sessions";
 /**
  * Live panes at most. Opening one more closes the least recently viewed, never the
  * visible one; reopening it costs one recap. Held to a measured budget
- * (PLAN-sessions.md, item 21).
+ * (NOTES.md, *Chapter 2 closed*).
  */
 export const PANE_CAP = 6;
 

@@ -172,7 +172,7 @@ pub fn pty_spawn(
     }
     // Agent view (←) opens in the attach's cwd, and a background session only runs in a
     // trusted folder, so there it never asks for trust. A cwd that's gone is refused
-    // rather than swapped for $HOME, which would ask (PLAN-sessions.md).
+    // rather than swapped for $HOME, which would ask (NOTES.md, *Chapter 2 closed*).
     let cwd = crate::session_cwd(&app, &session)
         .ok_or_else(|| format!("{session} isn't listed by `claude agents`"))?;
     if !Path::new(&cwd).is_dir() {

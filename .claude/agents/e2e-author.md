@@ -23,7 +23,7 @@ The repo is `/Users/khalilbrewington/Github Repos/oscillate`; use absolute paths
 
 ## What you may read
 
-- The criterion you were given, and `PLAN-sessions.md`, which it came from.
+- The criterion you were given, and the open `PLAN-*.md` it came from.
 - `CLAUDE.md` (what the app is and its invariants).
 - Everything under `e2e/`. Start with `e2e/README.md`, then `e2e/helpers/*.ts` and
   `e2e/fixtures/*.json`.

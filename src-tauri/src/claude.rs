@@ -7,7 +7,7 @@
 //!
 //! Asking the shell costs ~1s, so the answer is cached for the app's lifetime, warmed on
 //! a background thread at launch, and looked up again once if the cached binary is gone
-//! (an nvm switch or a reinstall). PLAN-sessions.md has the reasoning.
+//! (an nvm switch or a reinstall). NOTES.md, *Chapter 2 closed*, has the reasoning.
 
 use std::ffi::OsString;
 use std::path::PathBuf;

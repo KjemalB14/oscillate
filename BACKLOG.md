@@ -24,41 +24,9 @@ by chapter 1 (`NOTES.md` → *Chapter 1 closed: go*).
 
 Both slices shipped (below). The results and the verdict are in `NOTES.md`.
 
-### Chapter 2 — Every session, one click away (ends in /Applications)
+### Chapter 2 — Every session, one click away (ends in /Applications): closed 2026-09-28
 
-- [x] **1. The session model, Rust only, no UI.** Shipped 2026-09-25.
-  - The `claude` resolver: `claude_bin()` exists (`claude.rs`, `-lic`, returns the
-    login PATH too). Add caching, since one call costs ~1s, and tests against a fake
-    `claude`.
-  - A serialized 2s poll of `claude agents --json --all`.
-  - A file-watch on `~/.claude/sessions` and `~/.claude/jobs`, used only as a re-poll
-    trigger.
-  - A diff that emits `sessions-changed`.
-  - One pure function maps each entry to what the UI shows: working · needs you · done ·
-    failed · stopped · paused · terminal-tab.
-  - Tests run over fixture JSON and a fake `claude`.
-- [x] **2. Sidebar rendering only.** Shipped 2026-09-27.
-  - Repo groups by `cwd` (basename, disambiguated), collapsible, with counts.
-  - Each session shows a state dot, name and `waitingFor`. Terminal-tab sessions are
-    dimmed with a "run /bg to open here" hint.
-  - An empty state.
-  - The e2e harness arrives here: WebdriverIO + `@wdio/tauri-service` + the fake
-    `claude`.
-- [x] **3. Click to attach, with a PTY pool.** Shipped 2026-09-28.
-  - One PTY and one xterm instance per opened session; switching never reattaches.
-  - A detached PTY shows "Detached — click to reattach".
-  - A session that vanishes from the list closes its PTY.
-  - Quitting the app detaches all PTYs and leaves the sessions running.
-  - An LRU cap of 6 live PTYs, held to a measured budget (`PLAN-sessions.md`).
-  - **← in a pane opens agent view in place** (`NOTES.md`, chapter 1 slice 2). Attach
-    runs in the session's own `cwd`, and the child turning into `claude agents` is
-    detected and treated as a detach (`PLAN-sessions.md`).
-  - On PTY exit, reset xterm's input modes (mouse, focus, kitty flags) so a dead pane
-    sends nothing.
-- [ ] **4. Ship to the Dock.**
-  - `tauri build`, ad-hoc signing, `/Applications`, an icon.
-  - Verify the resolver finds `claude` when the app is launched from Finder.
-  - **Daily use and feedback start here.**
+All four slices shipped (below). The results are in `NOTES.md`.
 
 ### Chapter 3 — Start and end sessions from the app
 
@@ -106,6 +74,11 @@ Both slices shipped (below). The results and the verdict are in `NOTES.md`.
   app, so the list moved under the pointer between two clicks (`NOTES.md`, *Chapter 2,
   slice 3*). Needs a stable order: first seen, or by name. Decide before chapter 3
   adds rows.
+- [ ] **Check the daemon's PATH when an Oscillate click starts it.** Item 24's daemon
+  clause couldn't be triggered, because the daemon was already up, hosting the session
+  that ran the check (`NOTES.md`, *Chapter 2, slice 4*). The next time no background
+  session exists and a click in the Finder-launched app starts the daemon, run
+  `ps eww <daemon pid>` and confirm its PATH is the login shell's.
 - [ ] **An e2e claim for the sidebar's load path.** Only an incidental one covers
   `sessions_snapshot` today (`NOTES.md`, *Chapter 2, slice 2, session B*). A claim
   that reloads the page and sees the current list without the fake changing would
@@ -114,10 +87,15 @@ Both slices shipped (below). The results and the verdict are in `NOTES.md`.
 ## Undecided — needs a decision before it's work
 
 Nothing open. (Clipped's e2e discipline was decided on 2026-09-26: ported, with the
-gate on merge instead of push. See `PLAN-sessions.md` → *Chosen*.)
+gate on merge instead of push. See `NOTES.md` → *Chapter 2 closed*.)
 
 ## Shipped
 
+- 2026-09-28: chapter 2, slice 4: ship to the Dock. `Oscillate.app` with its own icon,
+  ad-hoc signed by the build, installed in `/Applications`. Launched from Finder, it
+  lists every session about 1s after its window appears, and a click attaches with the
+  login shell's PATH. Items 23–24 verified by hand; the daemon clause of 24 wasn't
+  triggered (Later). **Chapter 2 closes.** The results are in `NOTES.md`.
 - 2026-09-28: chapter 2, slice 3: click to attach, with a pool of panes. Attach runs
   in the session's `cwd`; ← and Ctrl+Z detach; a vanished session's PTY closes; quit
   leaves no attach; an LRU cap of 6 within the budget (893 MiB, ≤ 2% CPU). Items 13–18,
