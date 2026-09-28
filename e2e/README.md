@@ -44,9 +44,10 @@ when nothing changed.
     cwd=<dir>` and turns on mouse and focus reports, as Claude's TUI does. Then it logs
     every byte it reads, as `keys <id> <pid> <hex>`.
     - Ctrl+Z prints `[detached from <id>]`, logs `detach`, and exits 0.
-    - ← execs `claude agents` **in the same pid**, as the real attach does
-      (`NOTES.md`, *← is an `exec`*).
-  - `agents` (agent view) logs `agents pid=<n>` and waits to be hung up.
+    - ← logs `agents pid=<n>`, then execs `claude agents` **in the same pid**, as the
+      real attach does (`NOTES.md`, *← is an `exec`*). The log comes first because
+      the app can hang the pid up before agent view has run a line.
+  - `agents` (agent view) waits to be hung up.
 - **`helpers/app.ts`** is what specs import:
   - `show(fixture)` sets the answer, touches the watched directory, and waits for the
     app to have polled it.

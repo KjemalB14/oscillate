@@ -45,6 +45,10 @@ export function TerminalPane({ session, label, visible, attempt, onStatus, onRea
   const term = useRef<Terminal>(null);
   const fit = useRef<FitAddon>(null);
   const pty = useRef<Pty>(null);
+  /** Input typed while attaching, sent once the PTY is live; `null` when nothing is. */
+  const pending = useRef<Uint8Array[] | null>(null);
+  const visibleNow = useRef(visible);
+  visibleNow.current = visible;
   const [ended, setEnded] = useState<string | null>(null);
 
   // The terminal: one per pane, for the pane's whole life.
@@ -81,13 +85,16 @@ export function TerminalPane({ session, label, visible, attempt, onStatus, onRea
     term.current = t;
     fit.current = f;
 
+    // Only a live PTY is written to; `pty` is cleared the moment it exits. What is typed
+    // while attaching is held for it, so keys right after a click aren't lost.
+    const send = (bytes: Uint8Array) => {
+      if (pty.current) pty.current.write(bytes);
+      else pending.current?.push(bytes);
+    };
     const encoder = new TextEncoder();
-    // Only a live PTY is written to; `pty` is cleared the moment it exits.
-    const input = t.onData((d) => pty.current?.write(encoder.encode(d)));
+    const input = t.onData((d) => send(encoder.encode(d)));
     // Mouse reports in X10 mode arrive as a binary string, one byte per char.
-    const binary = t.onBinary((d) =>
-      pty.current?.write(Uint8Array.from(d, (c) => c.charCodeAt(0) & 0xff)),
-    );
+    const binary = t.onBinary((d) => send(Uint8Array.from(d, (c) => c.charCodeAt(0) & 0xff)));
     const resize = t.onResize(({ cols, rows }) => pty.current?.resize(cols, rows));
     const observer = new ResizeObserver(() => f.fit());
     observer.observe(host.current!);
@@ -121,6 +128,7 @@ export function TerminalPane({ session, label, visible, attempt, onStatus, onRea
     const start = async () => {
       if (attempt > 0) t.reset();
       setEnded(null);
+      pending.current = [];
       onStatus(session, "attaching");
       const p = await spawnPty(
         session,
@@ -135,6 +143,7 @@ export function TerminalPane({ session, label, visible, attempt, onStatus, onRea
           }),
         () => {
           exited = true;
+          pending.current = null;
           if (pty.current === mine) pty.current = null;
           if (disposed) return;
           t.write(RESET_INPUT_MODES);
@@ -142,6 +151,7 @@ export function TerminalPane({ session, label, visible, attempt, onStatus, onRea
           onStatus(session, "detached");
         },
       ).catch((e) => {
+        pending.current = null;
         if (disposed) return;
         setEnded(`Couldn't attach: ${e} — click to retry`);
         onStatus(session, "failed");
@@ -153,7 +163,11 @@ export function TerminalPane({ session, label, visible, attempt, onStatus, onRea
       mine = p;
       pty.current = p;
       p.resize(t.cols, t.rows);
+      for (const bytes of pending.current ?? []) p.write(bytes);
+      pending.current = null;
       onStatus(session, "live");
+      // The reattach button that was clicked is gone; the keyboard goes back to the pane.
+      if (visibleNow.current) t.focus();
     };
     // StrictMode mounts, unmounts and remounts synchronously in dev. Deferring the spawn
     // means only the surviving mount starts one, so a session never gets two attaches.
@@ -161,6 +175,7 @@ export function TerminalPane({ session, label, visible, attempt, onStatus, onRea
 
     return () => {
       disposed = true;
+      pending.current = null;
       clearTimeout(startTimer);
       clearTimeout(ackTimer);
       if (pty.current === mine) pty.current = null;

@@ -8,8 +8,9 @@
  * - `attach <id>` runs `tty.pl`: it logs its pid and cwd (`attach <id> pid=<n> cwd=<dir>`),
  *   turns on mouse and focus reports as Claude's TUI does, and logs every byte it reads
  *   (`keys <id> <pid> <hex>`). Ctrl+Z prints `[detached from <id>]`, logs `detach`, and
- *   exits 0. ← execs `claude agents` in the same pid, as the real attach does.
- * - `agents`, agent view: logs `agents pid=<n>` and waits for its hangup.
+ *   exits 0. ← logs `agents pid=<n>` and execs `claude agents` in the same pid, as the
+ *   real attach does.
+ * - `agents`, agent view: waits for its hangup.
  *
  * One fake serves the whole run, because the service launches one app: the config
  * creates it and exports its paths in `process.env`, which the workers inherit.
@@ -103,7 +104,10 @@ exit 2
       .map((m) => ({ id: m[1], pid: Number(m[2]), cwd: m[3] }));
   }
 
-  /** The pids of every agent view (`claude agents`) that ← started, oldest first. */
+  /**
+   * The pids of every agent view (`claude agents`) that ← started, oldest first. Logged
+   * at the exec, which is when agent view appears.
+   */
   agentViews(): number[] {
     return this.log()
       .map((l) => l.match(/^agents pid=(\d+)$/))
@@ -169,7 +173,6 @@ sub say_log { open my $l, ">>", "$d/log" or die; print $l "@_\n"; close $l }
 STDOUT->autoflush(1);
 system("stty raw -echo");
 if ($ARGV[0] eq "agents") {
-    say_log("agents pid=$$");
     print "fake agent view\r\n";
     1 while sysread(STDIN, my $buf, 4096);
     exit 0;
@@ -185,6 +188,11 @@ while (sysread(STDIN, my $buf, 4096)) {
         say_log("detach $id pid=$$");
         exit 0;
     }
-    exec("$d/claude", "agents") if $buf =~ /\e\[D|\eOD/;
+    if ($buf =~ /\e\[D|\eOD/) {
+        # Logged before the exec: that is when agent view appears, and the app may hang
+        # this pid up before the exec'd agent view gets to run a line.
+        say_log("agents pid=$$");
+        exec("$d/claude", "agents");
+    }
 }
 `;
