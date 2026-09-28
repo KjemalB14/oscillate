@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # PreToolUse gate: a slice is not merged into main until the end-to-end suite has passed
-# on exactly the code being merged. PLAN-sessions.md → *Chosen* has the decision; it is
+# on exactly the code being merged. NOTES.md → *Chapter 2 closed* has the decision; it is
 # clipped's push gate moved to the merge, because Oscillate has no remote.
 #
 # Three answers, in order, for `git merge <branch>` run while `main` is checked out:

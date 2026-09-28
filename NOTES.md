@@ -9,6 +9,52 @@ Newest entries at the top.
 
 ---
 
+## 2026-09-28 — Chapter 2 closed: every session, one click away
+
+All four slices shipped. The app lives in `/Applications`, lists every session grouped
+by repo, and attaches one on a click. `PLAN-sessions.md` was deleted with this entry.
+Its full text (the question, what was chosen and rejected, the acceptance criteria and
+the implementation notes) is at commit `3eaa774`:
+`git show 3eaa774:PLAN-sessions.md`. The decisions that outlive the chapter:
+
+- **The resolver is cached in memory, warmed at launch, and re-resolved once** when
+  the cached binary is gone (ENOENT or exit 127). `OSCILLATE_CLAUDE_BIN` skips the
+  shell.
+  - **Rejected:** a cache that is never cleared (an nvm switch would need a restart,
+    with no hint why), and a TTL re-run (an arbitrary N, and a login shell over and
+    over for a change that almost never happens).
+  - **Rejected:** persisting the answer to disk. A stale PATH would be handed to any
+    daemon an attach starts, and every background session inherits it.
+- **← counts as a detach.** A 250ms watch reads each attach pid's argv and kills it
+  once it has become agent view, so the PTY's record of its session stays true
+  (invariant 3).
+  - **Rejected:** reattaching at once (each stray ← would cost a recap), swallowing ←
+    in the frontend (it also moves Claude's cursor), and following agent view's pick
+    (`agents --json` has no client field, so the record would be a guess).
+- **Attach runs in the session's own `cwd`**, and a `cwd` that no longer exists is
+  refused. **Rejected:** `$HOME`, or falling back to it. Agent view asks for trust
+  there, and the watch would kill a process sitting at the trust prompt.
+- **At most 6 live panes, least recently viewed evicted, held to 1 GiB and 20% of a
+  core.** Measured: 893 MiB and ≤ 2% for six idle panes. If a later change fails the
+  budget, the cap drops; the budget does not rise. **Rejected:** 4 (ordinary switching
+  keeps costing recaps), 8 (an estimated ~850 MiB before xterm's own cost was known),
+  and no cap.
+- **Clipped's e2e discipline, with the gate on merge.** `e2e-author` writes every
+  spec, without reading the implementation, and a hook refuses spec writes from anyone
+  else. A merge into `main` needs the branch's exact tree green, or `E2E: none — <why>`.
+  A slice with specs spans two sessions, and a spec counts only once a break has turned
+  it red.
+  - **Rejected:** the coding session writing its own specs (a spec can share the code's
+    misreading), an inline subagent as author (no stable `agent_type` to lock on), a
+    rule with no hook (a session forgets it), a push gate (no remote), and gating every
+    commit on `main`.
+- **The app ships as an ad-hoc-signed `.app` built by `tauri build` alone** (slice 4,
+  below).
+
+What the chapter left unproved, each in `BACKLOG.md`: the sidebar's load path is
+covered only incidentally, rows re-sort when a session is attached, and item 24's
+daemon clause.
+
 ## 2026-09-28 — Chapter 2, slice 4: ship to the Dock
 
 `Oscillate.app` is built, ad-hoc signed, has its own icon, and is installed in

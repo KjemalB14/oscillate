@@ -57,34 +57,30 @@ sessions through the resolver (`claude::resolver()`, `src-tauri/src/claude.rs`).
 acceptance items were verified against Ghostty. The verdict and what it didn't prove
 are in `NOTES.md` → *Chapter 1 closed: go*.
 
-**Chapter 2 is open** (`PLAN-sessions.md`). Slice 1, the session model, is shipped:
-- The resolver is cached and warmed at launch.
-- `poll.rs` runs `claude agents --json --all` every 2s, and `watch.rs` re-polls on
-  changes to `sessions/*.json` or `jobs/*/state.json`.
-- The frontend gets the list as the `sessions-changed` event and the
-  `sessions_snapshot` command (`null` until the first good poll), mapped by
-  `sessions.rs`.
-
-**Slice 2, the sidebar, is shipped** (merged 2026-09-27; items 9–12 green).
-- `src/Sidebar.tsx` renders the list grouped by repo (`src/groups.ts`).
-- `e2e/sidebar-*.spec.ts` cover it. Specs are written by `e2e-author`, in a session
-  **started from this directory**. A session started anywhere else loads neither the
-  agent nor the hooks (`NOTES.md`, *Chapter 2, slice 2*).
-
-**Slice 3, click to attach with a pool of panes, is shipped** (merged 2026-09-28; items
-13–22 pass, with 15, 19 and 21 also checked against real `claude`).
+**Chapter 2, *Every session, one click away*, is closed** (2026-09-28). Its decisions
+and what it didn't prove are in `NOTES.md` → *Chapter 2 closed*.
+- `poll.rs` runs `claude agents --json --all` every 2s through the cached resolver, and
+  `watch.rs` re-polls on changes under `sessions/` or `jobs/`. The frontend gets the
+  list as `sessions-changed` and `sessions_snapshot`, mapped by `sessions.rs`.
+- `src/Sidebar.tsx` renders it grouped by repo (`src/groups.ts`).
 - A row click attaches the session in its own `cwd`. Each opened session keeps its pane
-  and PTY (`src/App.tsx`), up to 6, evicting the least recently viewed.
-- ← turns the attach into agent view in the same pid. `pty.rs`'s watch sees the argv
-  change and kills it, and the pane shows "Detached — click to reattach". Ctrl+Z
-  detaches the same way.
-- A closing PTY counts against its session until reaped, and is read until EOF
-  (`NOTES.md`, *Chapter 2, slice 3*).
-- `e2e/attach-*.spec.ts` cover it, against a fake `attach` (`e2e/README.md`).
+  and PTY (`src/App.tsx`), up to 6, evicting the least recently viewed. ← and Ctrl+Z
+  detach; `pty.rs`'s argv watch kills agent view.
+- `e2e/sidebar-*.spec.ts` and `e2e/attach-*.spec.ts` cover it. Specs are written by
+  `e2e-author`, in a session **started from this directory**. A session started
+  anywhere else loads neither the agent nor the hooks.
+- **`Oscillate.app` is installed in `/Applications`**, ad-hoc signed by the build, with
+  its icon drawn in `src-tauri/icons/app-icon.svg`. Launched from Finder, it finds
+  `claude` through the login shell. Daily use and feedback start here.
 
-**Slice 4, ship to the Dock, is next.** It is not started.
+**Chapter 3, start and end sessions from the app, is next.** It opens with `/decide`,
+which writes its `PLAN-*.md`. Decide the sidebar row order (`BACKLOG.md`, *Later*)
+before it adds rows.
 
 - Dev: `npm run tauri dev`. Release binary: `npx tauri build --no-bundle`.
+- Install: quit the app, then `npx tauri build` and `ditto
+  src-tauri/target/release/bundle/macos/Oscillate.app /Applications/Oscillate.app`.
+  Check disk space first (`df -h /System/Volumes/Data`).
 - Tests: `cargo test` in `src-tauri`, against fixtures and a fake `claude`
   (`testutil.rs`); they never run the real one.
 - E2E: `npm run e2e` (WDIO against a fake `claude` and a temp watched directory, which
@@ -94,7 +90,8 @@ are in `NOTES.md` → *Chapter 1 closed: go*.
 - `@xterm/*` is pinned to 6.1.0 betas for the kitty keyboard protocol. Don't
   downgrade to 6.0: Esc Esc stops working in Claude.
 - Rust lives in `~/.cargo/bin`.
-- Claude can drive the window itself with `~/.claude/scripts/drive-window` (`--help`).
+- Claude can drive the window itself with `~/.claude/scripts/drive-window` (`--help`),
+  but not from a `claude --bg` job, which isn't allowed to send Apple Events.
 
 ## The invariants
 

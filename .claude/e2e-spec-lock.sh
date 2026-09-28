@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # PreToolUse guard: e2e specs are written by the e2e-author agent, never by the agent
 # that wrote the code under test — an agent that writes both can write a test that
-# agrees with its own misreading. PLAN-sessions.md → *Chosen* has the decision (ported from clipped).
+# agrees with its own misreading. NOTES.md → *Chapter 2 closed* has the decision (ported from clipped).
 #
 # A subagent's hook input carries `agent_type`; the main session's does not. This is a
 # guard against accidents, not a sandbox: it catches the ordinary ways of writing a

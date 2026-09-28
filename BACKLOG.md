@@ -87,7 +87,7 @@ All four slices shipped (below). The results are in `NOTES.md`.
 ## Undecided — needs a decision before it's work
 
 Nothing open. (Clipped's e2e discipline was decided on 2026-09-26: ported, with the
-gate on merge instead of push. See `PLAN-sessions.md` → *Chosen*.)
+gate on merge instead of push. See `NOTES.md` → *Chapter 2 closed*.)
 
 ## Shipped
 
