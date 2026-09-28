@@ -124,8 +124,11 @@ what slice 1 or slice 3 builds:
 
 ## Still open
 
-- **Whether ← is a real `exec` or a spawned child.** Confirmed at the start of slice 3.
-  It changes how detection finds the process, not the decision.
+- ~~**Whether ← is a real `exec` or a spawned child.**~~ **Settled 2026-09-27: a real
+  `exec` in the same pid.** The attach pid's argv becomes `<claude.exe> agents` about
+  275ms after the key. So detection watches that one pid's argv
+  (`sysctl(KERN_PROCARGS2)`), matching the arguments and not `argv[0]`, which becomes
+  the resolved binary. `NOTES.md`, *Chapter 2, slice 3: ← is an `exec`*.
 - **The xterm instance's own cost in WebContent.** Measured in slice 3. It can lower
   the cap, never raise the budget.
 

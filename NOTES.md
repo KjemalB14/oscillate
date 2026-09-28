@@ -9,6 +9,41 @@ Newest entries at the top.
 
 ---
 
+## 2026-09-27 — Chapter 2, slice 3: ← is an `exec` in the same pid
+
+This settles `PLAN-sessions.md`'s first *Still open* item before any detection was built.
+
+- **How it was checked.** A throwaway `claude --bg --permission-mode plan` session was
+  started in `~/Github Repos` (trusted). A Python PTY attached it with Oscillate's clean
+  environment and the login PATH, at 120×40, and pressed ← (`CSI D`). `ps` sampled the
+  PTY's process tree every 50ms. That was done twice, with the same result.
+  - A scripted PTY, not the app through `drive-window`: it samples faster than a
+    screenshot loop, and a trusted cwd means no trust prompt. The app at this commit
+    still attaches in `$HOME`, where agent view would ask for trust.
+- **The result.** About 275ms after the key, the attach pid is still the same pid, with
+  the same ppid and pgid. Its argv has changed from `…/bin/claude attach <id>` to
+  `<realpath of claude.exe> agents`. Agent view then spawns short-lived children (`ps`,
+  `bash`) in the same process group. Closing the PTY master ended it: only the zombie
+  was left, since the probe never reaped it.
+- **What that means for detection:**
+  - It watches one pid per PTY, the child it spawned. There's no tree walk.
+  - It reads the argv with `sysctl(KERN_PROCARGS2)` and matches on the arguments
+    (`attach <id>`), never `argv[0]`. `argv[0]` changes from the nvm symlink to the
+    resolved `claude.exe`.
+  - It needs no tree kill: closing the PTY hangs up the whole foreground process group.
+- **What it cost to find out: the disk was full.** 166 MiB were free at session start.
+  A Claude Code auto-update at 18:26 had died mid-install. It left `bin/claude`
+  missing, a 500-byte stub `claude.exe`, and the working 2.1.283 in npm's set-aside
+  dir, so `claude` resolved nowhere. The running daemon kept its open binary.
+  - `src-tauri/target/debug` (3.8 GiB) was cleared, with the author's OK.
+  - The first `npm i -g` failed with ENOTEMPTY on npm's own rename. It succeeded after
+    the set-aside dir was moved out of the way.
+  - An app running at the time would have hit the resolver's "`claude` not found"
+    path on every lookup until the reinstall. That is the slice 1 retry case, but for
+    hours rather than seconds.
+
+---
+
 ## 2026-09-27 — Chapter 2, slice 2, session B: the specs, the breaks, the merge
 
 Slice 2 is merged (`7d2eb88`, a fast-forward through the gate). Items 9–12 pass.
