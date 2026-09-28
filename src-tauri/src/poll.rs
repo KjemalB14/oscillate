@@ -4,7 +4,8 @@
 //! at once (after a 100ms settle) when the file-watch sends a trigger. `on_change` is
 //! called only when the mapped list differs from the last good one. A failed poll keeps
 //! that list, logs one line, and waits 10s before the next timed try, so a missing
-//! `claude` doesn't mean a login shell every 2s.
+//! `claude` doesn't mean a login shell every 2s. Every list is stamped with each row's
+//! first-seen sort key (`FirstSeen`) before it's compared or sent.
 
 use std::io::Read;
 use std::process::{Command, Stdio};
@@ -15,7 +16,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use crate::claude::{child_env, Resolver};
-use crate::sessions::{parse, Session};
+use crate::sessions::{parse, FirstSeen, Session};
 
 pub struct PollConfig {
     pub interval: Duration,
@@ -55,6 +56,7 @@ impl Poller {
             .name("sessions-poll".into())
             .spawn(move || {
                 let mut last: Option<Vec<Session>> = None;
+                let mut first_seen = FirstSeen::default();
                 let mut due = Instant::now();
                 while !stop2.load(Ordering::Relaxed) {
                     let wait = due.saturating_duration_since(Instant::now());
@@ -73,7 +75,8 @@ impl Poller {
                     }
                     let started = Instant::now();
                     match poll_once(&resolver, cfg.timeout) {
-                        Ok(sessions) => {
+                        Ok(mut sessions) => {
+                            first_seen.stamp(&mut sessions);
                             due = started + cfg.interval;
                             if last.as_ref() != Some(&sessions) {
                                 *latest2.lock().unwrap() = Some(sessions.clone());
@@ -277,7 +280,9 @@ mod tests {
             ..Default::default()
         };
         let (_poller, tx, _) = start(&fake, cfg);
-        fake.wait_for_starts(1, SECOND).unwrap();
+        // Only the first start's wait is loose: a fresh fake's first run is late under a
+        // full-suite load. The claim is measured from it.
+        fake.wait_for_starts(1, 3 * SECOND).unwrap();
         thread::sleep(Duration::from_millis(800));
         assert_eq!(fake.starts(), 1, "retried before the retry interval");
         // A trigger still polls at once.

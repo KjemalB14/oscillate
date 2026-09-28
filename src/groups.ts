@@ -5,7 +5,7 @@ export interface RepoGroup {
   key: string;
   /** The `cwd` basename, with parent segments added until no two groups share it. */
   label: string;
-  /** Newest first. */
+  /** Newest first by `sortKey`, so a respawned or renamed session keeps its place. */
   sessions: Session[];
 }
 
@@ -57,7 +57,7 @@ export function groupSessions(sessions: Session[]): RepoGroup[] {
     .map(([cwd, list]) => ({
       key: cwd,
       label: tail(cwd, depth.get(cwd)!),
-      sessions: [...list].sort((a, b) => b.startedAt - a.startedAt),
+      sessions: [...list].sort((a, b) => b.sortKey - a.sortKey || a.key.localeCompare(b.key)),
     }))
     .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }));
 }

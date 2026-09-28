@@ -10,6 +10,8 @@
 //!
 //! Every field is optional except `kind`, so a new or missing field never fails a poll.
 
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]
@@ -57,6 +59,9 @@ pub struct Session {
     pub raw_state: Option<String>,
     pub waiting_for: Option<String>,
     pub started_at: i64,
+    /// What rows sort by, newest first: the `startedAt` the app first saw for this `key`
+    /// (`FirstSeen`). Equal to `started_at` until then.
+    pub sort_key: i64,
 }
 
 pub fn to_session(e: &AgentEntry) -> Session {
@@ -88,6 +93,21 @@ pub fn to_session(e: &AgentEntry) -> Session {
         raw_state: e.state.clone(),
         waiting_for: e.waiting_for.clone(),
         started_at: e.started_at.unwrap_or(0.0) as i64,
+        sort_key: e.started_at.unwrap_or(0.0) as i64,
+    }
+}
+
+/// Keeps rows still. `startedAt` is when a session's *current process* started, so a
+/// respawn (attaching a paused or done session does one) makes it newest again. Each
+/// `key` keeps the `startedAt` it had when first seen, for the life of the app process.
+#[derive(Default)]
+pub struct FirstSeen(HashMap<String, i64>);
+
+impl FirstSeen {
+    pub fn stamp(&mut self, sessions: &mut [Session]) {
+        for s in sessions {
+            s.sort_key = *self.0.entry(s.key.clone()).or_insert(s.started_at);
+        }
     }
 }
 
@@ -181,11 +201,38 @@ mod tests {
     }
 
     #[test]
+    fn a_respawn_or_rename_keeps_the_first_seen_sort_key() {
+        let mut seen = FirstSeen::default();
+        let mut first = parse(&fixture("all-states.json")).unwrap();
+        seen.stamp(&mut first);
+        let original = first[0].sort_key;
+        assert_eq!(original, first[0].started_at);
+
+        let mut later = first.clone();
+        later[0].started_at += 1_000_000;
+        later[0].name = Some("renamed".into());
+        seen.stamp(&mut later);
+        assert_eq!(later[0].sort_key, original);
+    }
+
+    #[test]
+    fn a_new_key_sorts_by_its_own_started_at() {
+        let mut seen = FirstSeen::default();
+        seen.stamp(&mut parse(&fixture("all-states.json")).unwrap());
+        let mut next = parse(&fixture("all-states.json")).unwrap();
+        next[0].key = "newcomer".into();
+        next[0].started_at = 9_999_999_999_999;
+        seen.stamp(&mut next);
+        assert_eq!(next[0].sort_key, 9_999_999_999_999);
+    }
+
+    #[test]
     fn serializes_for_the_frontend() {
         let s = &parse(&fixture("all-states.json")).unwrap()[1];
         let v = serde_json::to_value(s).unwrap();
         assert_eq!(v["state"], "needs-you");
         assert_eq!(v["waitingFor"], "approve Bash");
         assert_eq!(v["rawState"], "blocked");
+        assert_eq!(v["sortKey"], v["startedAt"]);
     }
 }
