@@ -222,6 +222,13 @@ describe("a new session from the app (items 5-8)", () => {
       timeoutMsg: `no message containing ${id}`,
     });
     expect(Date.now() - t0).toBeGreaterThanOrEqual(8000);
+    // "nothing is attached" must hold over a window, not at one instant.
+    const until = Date.now() + 3000;
+    while (Date.now() < until) {
+      expect(fake.attaches(id).length).toBe(0);
+      expect(fake.running().attach.get(id)?.length ?? 0).toBe(0);
+      await browser.pause(100);
+    }
     expect(fake.attaches(id).length).toBe(0);
   });
 });
