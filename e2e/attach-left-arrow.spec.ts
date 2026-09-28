@@ -25,8 +25,28 @@
  * The press-to-appear gap (not itself part of item 15's claim) is also recorded and
  * flagged if any try takes more than ~2s, since keys typed mid-attach are now held and
  * sent once the pane is live.
+ *
+ * A break test showed the ten tries were not independent: each ← landed a nearly
+ * constant time after the previous detach, so every try sampled the same phase of
+ * whatever periodic mechanism the app's detection runs on, and ten tries measured one
+ * latency ten times over (they clustered ~100-130ms even with detection slowed to
+ * 600ms). Before every ← this test now waits a random delay, 0-1000ms, drawn from a
+ * seeded PRNG (`mulberry32`, seed and delays logged) -- so the ten presses land at ten
+ * different phases, and "10 out of 10" is ten actual samples, not one repeated.
  */
 import { attachable, fake, press, show } from "./helpers/app.js";
+
+/** Deterministic PRNG (mulberry32): same seed, same sequence, every run. */
+function mulberry32(seed: number): () => number {
+  let a = seed;
+  return () => {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
 
 function rowContaining(text: string) {
   return $(`//*[contains(text(),"${text}")]/..`);
@@ -52,6 +72,10 @@ describe('← detaches: shows "Detached — click to reattach" in time, then cle
     const dot = row.$('[role="img"]');
     await row.waitForExist();
     const initialState = await dot.getAttribute("aria-label");
+
+    const seed = 20260928;
+    const rng = mulberry32(seed);
+    const delays: number[] = [];
 
     const latencies: number[] = [];
     const pressToAppear: number[] = [];
@@ -90,6 +114,12 @@ describe('← detaches: shows "Detached — click to reattach" in time, then cle
       // attaching are now held and sent once live, so this can take a moment under a
       // busy suite) -- generous, and not what item 15's 500ms budgets: that is
       // measured strictly between `appearAt` and `shownAt`, asserted below.
+      // A random 0-1000ms wait before ← so this try samples a different phase of
+      // whatever periodic mechanism the app's detection runs on than the last one did.
+      const delay = Math.floor(rng() * 1000);
+      delays.push(delay);
+      await browser.pause(delay);
+
       const beforeAgentViews = fake.agentViews().length;
       let appearAt: number | null = null;
       let shownAt: number | null = null;
@@ -133,7 +163,8 @@ describe('← detaches: shows "Detached — click to reattach" in time, then cle
     }
     expect(latencies).toHaveLength(10);
     console.log(
-      `item 15: press-to-appear ${JSON.stringify(pressToAppear)}, appear-to-message ${JSON.stringify(latencies)}`,
+      `item 15: seed ${seed}, delays ${JSON.stringify(delays)}, press-to-appear ${JSON.stringify(pressToAppear)}, ` +
+        `appear-to-message ${JSON.stringify(latencies)}`,
     );
 
     // No agent-view process is left under Oscillate: every pid `fake.agentViews()`
