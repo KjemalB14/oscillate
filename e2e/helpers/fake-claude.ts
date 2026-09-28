@@ -3,8 +3,12 @@
  * its `claude` children with a clean environment, so the fake's behavior lives in files
  * beside it (`out`, `log`) that the tests rewrite while the app is running.
  *
- * It answers three commands, and logs each:
+ * It answers four commands, and logs each:
  * - `agents --json --all` prints `out` (`poll`).
+ * - `--bg ...` runs `bg.pl`: it logs its pid, start time, cwd and every argument
+ *   byte-exact (`bg pid=<n> at=<ms> cwd=<dir> argv=<hex>,<hex>,...`), then answers what
+ *   `answerBg` set: by default the stdout Claude Code 2.1.284 really printed
+ *   (`fixtures/bg-stdout.txt`), exit 0.
  * - `attach <id>` runs `tty.pl`: it logs its pid and cwd (`attach <id> pid=<n> cwd=<dir>`),
  *   turns on mouse and focus reports as Claude's TUI does, and logs every byte it reads
  *   (`keys <id> <pid> <hex>`). Ctrl+Z prints `[detached from <id>]`, logs `detach`, and
@@ -17,14 +21,30 @@
  * One fake serves the whole run, because the service launches one app: the config
  * creates it and exports its paths in `process.env`, which the workers inherit.
  */
+import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { appendFileSync, chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import {
+  appendFileSync,
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), "..", "fixtures");
 const DIR_VAR = "OSCILLATE_E2E_FAKE_DIR";
+/** The id in `fixtures/bg-stdout.txt`, the output of a real `claude --bg`. */
+const CAPTURED_BG_ID = "c59cf1b2";
+/** The file `touch()` rewrites; `claudeDirTree()` leaves it out. */
+const TOUCHED = join("sessions", "4242.json");
 
 export class FakeClaude {
   private constructor(readonly dir: string) {}
@@ -49,6 +69,21 @@ export class FakeClaude {
     return join(this.dir, "dot-claude");
   }
 
+  /** What `OSCILLATE_DATA_DIR` points at: the app keeps `repos.json` here. */
+  get dataDir(): string {
+    return join(this.dir, "data");
+  }
+
+  /** The environment the app is launched with, by the service and by `relaunch()`. */
+  appEnv(): Record<string, string> {
+    return {
+      OSCILLATE_CLAUDE_BIN: this.bin,
+      OSCILLATE_CLAUDE_DIR: this.claudeDir,
+      OSCILLATE_DATA_DIR: this.dataDir,
+      OSCILLATE_E2E_PICK: join(this.dir, "pick"),
+    };
+  }
+
   private create() {
     const d = this.dir.replace(/'/g, `'\\''`);
     writeFileSync(
@@ -57,6 +92,7 @@ export class FakeClaude {
 d='${d}'
 case "$*" in
 "agents --json --all") echo poll >> "$d/log"; cat "$d/out"; exit 0 ;;
+"--bg "*) exec /usr/bin/perl "$d/bg.pl" "$@" ;;
 "agents") exec /usr/bin/perl "$d/tty.pl" agents ;;
 "attach "*) exec /usr/bin/perl "$d/tty.pl" "$@" ;;
 esac
@@ -66,10 +102,85 @@ exit 2
     );
     chmodSync(this.bin, 0o755);
     writeFileSync(join(this.dir, "tty.pl"), TTY_PL);
+    writeFileSync(join(this.dir, "bg.pl"), BG_PL);
     mkdirSync(join(this.claudeDir, "sessions"), { recursive: true });
     mkdirSync(join(this.claudeDir, "jobs"), { recursive: true });
     writeFileSync(join(this.dir, "log"), "");
     this.setOut("all-states");
+    this.answerBg({ id: CAPTURED_BG_ID });
+    this.pick(null);
+    writeFileSync(join(this.dir, "claude-dir-baseline.json"), JSON.stringify(this.claudeDirTree()));
+  }
+
+  /**
+   * What the next `claude --bg` answers. By default its stdout is what a real
+   * `claude --bg` printed (Claude Code 2.1.284, colors and all), with `id` in place of
+   * the real id; stderr is empty and it exits 0. With a non-zero `exit`, stdout defaults
+   * to empty. `delayMs` holds the answer back.
+   */
+  answerBg(opts: { id?: string; stdout?: string; stderr?: string; exit?: number; delayMs?: number }) {
+    const captured = readFileSync(join(FIXTURES, "bg-stdout.txt"), "utf8");
+    const failing = (opts.exit ?? 0) !== 0;
+    const stdout = opts.stdout ?? (failing ? "" : captured.replaceAll(CAPTURED_BG_ID, opts.id ?? CAPTURED_BG_ID));
+    writeFileSync(join(this.dir, "bg-out"), stdout);
+    writeFileSync(join(this.dir, "bg-err"), opts.stderr ?? "");
+    writeFileSync(join(this.dir, "bg-exit"), String(opts.exit ?? 0));
+    writeFileSync(join(this.dir, "bg-delay"), String((opts.delayMs ?? 0) / 1000));
+  }
+
+  /** Every `claude --bg` the app ran, oldest first: argv after `claude`, byte-exact. */
+  bgs(): { pid: number; at: number; cwd: string; argv: string[] }[] {
+    return this.log()
+      .map((l) => l.match(/^bg pid=(\d+) at=(\d+) cwd=(.*) argv=([0-9a-f,]*)$/))
+      .filter((m): m is RegExpMatchArray => !!m)
+      .map((m) => ({
+        pid: Number(m[1]),
+        at: Number(m[2]),
+        cwd: m[3],
+        argv: m[4].split(",").map((h) => Buffer.from(h, "hex").toString("utf8")),
+      }));
+  }
+
+  /**
+   * How the app's next "Add repo…" folder picker is answered: a directory path, or
+   * `null` to cancel. The e2e build reads this instead of showing the native dialog.
+   */
+  pick(dir: string | null) {
+    writeFileSync(join(this.dir, "pick"), dir ?? "");
+  }
+
+  /** The app's `repos.json` as it is on disk: its `repos`, or `null` if there's no file. */
+  reposJson(): string[] | null {
+    const file = join(this.dataDir, "repos.json");
+    return existsSync(file) ? JSON.parse(readFileSync(file, "utf8")).repos : null;
+  }
+
+  /**
+   * Every path under the watched Claude dir, with a hash of each file's bytes ("dir" for
+   * a directory), sorted, leaving out the file `touch()` rewrites. Compare two of these to
+   * show the app wrote nothing there (invariant 5).
+   */
+  claudeDirTree(): Record<string, string> {
+    const tree: Record<string, string> = {};
+    const walk = (rel: string) => {
+      for (const name of readdirSync(join(this.claudeDir, rel)).sort()) {
+        const path = join(rel, name);
+        if (path === TOUCHED) continue;
+        if (statSync(join(this.claudeDir, path)).isDirectory()) {
+          tree[path] = "dir";
+          walk(path);
+        } else {
+          tree[path] = createHash("sha256").update(readFileSync(join(this.claudeDir, path))).digest("hex");
+        }
+      }
+    };
+    walk("");
+    return tree;
+  }
+
+  /** `claudeDirTree()` as it was when the fake was made, before the app launched. */
+  claudeDirBaseline(): Record<string, string> {
+    return JSON.parse(readFileSync(join(this.dir, "claude-dir-baseline.json"), "utf8"));
   }
 
   /**
@@ -205,4 +316,28 @@ while (sysread(STDIN, my $buf, 4096)) {
         exec("$d/claude", "agents");
     }
 }
+`;
+
+/**
+ * The fake `--bg`. It logs first, then waits `bg-delay` seconds, then answers `bg-out`,
+ * `bg-err` and `bg-exit`. Arguments are hex, so quotes, `$`, backticks and newlines
+ * survive the log exactly.
+ */
+const BG_PL = String.raw`use strict;
+use warnings;
+use Cwd qw(getcwd);
+use Time::HiRes qw(time sleep);
+my ($d) = $0 =~ m{^(.*)/[^/]*$};
+my $at = int(time() * 1000);
+sub slurp { open my $f, "<", "$d/$_[0]" or return ""; local $/; my $s = <$f>; close $f; $s }
+open my $l, ">>", "$d/log" or die;
+print $l "bg pid=$$ at=$at cwd=" . getcwd() . " argv=" . join(",", map { unpack("H*", $_) } @ARGV) . "\n";
+close $l;
+my $delay = slurp("bg-delay");
+sleep($delay) if $delay > 0;
+binmode STDOUT;
+binmode STDERR;
+print STDOUT slurp("bg-out");
+print STDERR slurp("bg-err");
+exit(slurp("bg-exit") + 0);
 `;

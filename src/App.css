@@ -95,11 +95,18 @@ body,
   margin-top: 8px;
 }
 
+.group-bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
 .group-header {
   display: flex;
   align-items: center;
   gap: 6px;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   padding: 4px 6px;
   border: 0;
   border-radius: 5px;
@@ -117,6 +124,8 @@ body,
 }
 
 .group-header:focus-visible,
+.group-action:focus-visible,
+.add-repo:focus-visible,
 .session:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: -2px;
@@ -276,4 +285,170 @@ body,
 .sidebar-empty code {
   font: 12px ui-monospace, Menlo, monospace;
   color: var(--text);
+}
+
+/* A group's own actions: "+" on every repo, "×" (remove from list) on added ones. */
+
+.group-action {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  color: var(--muted);
+  font: 15px/1 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+}
+
+.group-action:hover {
+  background: var(--rail-hover);
+  color: var(--text);
+}
+
+.add-repo {
+  display: block;
+  margin: 12px 0 0;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+}
+
+.add-repo:hover {
+  background: var(--rail-hover);
+  color: var(--text);
+}
+
+/* The "+" prompt box, over the panes. */
+
+.new-session {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 12vh;
+  background: rgb(0 0 0 / 45%);
+  font: 13px/1.35 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  color: var(--text);
+}
+
+.new-session form {
+  width: min(560px, calc(100% - 48px));
+  padding: 14px 16px 16px;
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  background: var(--rail);
+  box-shadow: 0 12px 40px rgb(0 0 0 / 45%);
+}
+
+.new-session h2 {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.new-session textarea {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--hairline);
+  border-radius: 6px;
+  background: var(--ground);
+  color: var(--text);
+  font: 13px/1.4 ui-monospace, Menlo, monospace;
+  resize: vertical;
+}
+
+.new-session textarea:focus,
+.new-session button:focus-visible,
+.modes label:has(input:focus-visible) {
+  outline: 2px solid var(--focus);
+  outline-offset: -1px;
+}
+
+.new-session-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  color: var(--muted);
+}
+
+.new-session-row .spacer {
+  flex: 1;
+}
+
+/* The permission mode: one segmented row, so every choice is one click. */
+
+.modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 10px 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.modes legend {
+  float: left;
+  margin-right: 6px;
+  padding: 4px 0;
+  color: var(--muted);
+}
+
+.modes label {
+  padding: 3px 9px;
+  border: 1px solid var(--hairline);
+  border-radius: 6px;
+  color: var(--muted);
+  font: 12px/1.4 ui-monospace, Menlo, monospace;
+}
+
+.modes label:has(input:checked) {
+  border-color: var(--focus);
+  color: var(--text);
+  background: rgb(110 168 254 / 14%);
+}
+
+.modes input {
+  margin: 0 5px 0 0;
+  vertical-align: -1px;
+}
+
+.new-session button {
+  padding: 4px 10px;
+  border: 1px solid var(--hairline);
+  border-radius: 6px;
+  background: var(--rail-hover);
+  color: var(--text);
+  font: inherit;
+}
+
+.new-session button[type="submit"]:not(:disabled) {
+  border-color: var(--focus);
+  background: var(--focus);
+  color: #10141a;
+}
+
+.new-session button:disabled {
+  opacity: 0.5;
+}
+
+.new-session-error {
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgb(239 107 107 / 12%);
+  color: var(--failed);
+  font: 12px/1.4 ui-monospace, Menlo, monospace;
+  white-space: pre-wrap;
+  -webkit-user-select: text;
+  user-select: text;
 }

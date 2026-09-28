@@ -37,9 +37,14 @@ when nothing changed.
   the fake answers and waits for the app to poll it; it never relaunches the app.
 - **`helpers/fake-claude.ts`** is a TS port of `src-tauri/src/testutil.rs`'s fake. The
   app runs its `claude` children with a clean environment, so the fake reads files
-  beside itself, never env vars. It answers three commands and logs each one (any other
+  beside itself, never env vars. It answers four commands and logs each one (any other
   arguments log `unexpected: …`):
   - `agents --json --all` prints the file `out` and logs `poll`.
+  - `--bg …` logs `bg pid=<n> at=<ms> cwd=<dir> argv=<hex>,…`, every argument hex-encoded
+    so quotes, `$`, backticks and newlines survive. Then it answers what
+    `fake.answerBg()` set. By default that's the stdout a real `claude --bg` printed
+    (Claude Code 2.1.284, `fixtures/bg-stdout.txt`, colors included), with the given id,
+    and exit 0. It starts no session and writes nothing under the watched dir.
   - `attach <id>` runs `tty.pl`, a Perl keylogger. It logs `attach <id> pid=<n>
     cwd=<dir>` and turns on mouse and focus reports, as Claude's TUI does. Then it logs
     every byte it reads, as `keys <id> <pid> <hex>`.
@@ -62,6 +67,18 @@ when nothing changed.
   - `fake.attaches(id?)`, `fake.agentViews()` and `fake.keys(id, pid?)` read the log.
     `fake.running()` reads `ps`: the live `attach` pids by session id, and the live
     agent-view pids.
+  - `fake.answerBg({ id, stdout?, stderr?, exit?, delayMs? })` sets the next `--bg`
+    answer. A non-zero `exit` defaults stdout to empty. `fake.bgs()` reads back every
+    `--bg`: `{ pid, at, cwd, argv }`, with `argv` decoded and byte-exact.
+  - `fake.pick(dir | null)` answers the app's next "Add repo…" folder picker (`null`
+    cancels). The e2e build reads it instead of opening the native dialog.
+    `fake.reposJson()` reads the app's `repos.json` (`null` if there's none).
+  - `fake.claudeDirTree()` hashes every path under the watched Claude dir, except the
+    file `touch()` rewrites. `fake.claudeDirBaseline()` is that tree from before the app
+    launched.
+  - `relaunch()` quits the app (SIGTERM) and starts a new process with the same
+    environment, then opens a new WebDriver session on it. `appPids()` lists the running
+    e2e app's pids.
   - `press(...keys)` types into the focused terminal pane: `"ArrowLeft"`, `"Ctrl+Z"`,
     `"Escape"`, `"Enter"`, or any text. **Don't use `browser.keys()` in a pane.** This
     driver puts the character code in `keyCode`, so xterm.js reads `x` as `x` plus F9,
@@ -75,6 +92,14 @@ when nothing changed.
   - `not.toBeDisplayed()` and `not.toBeExisting()` pass on a locator that never
     matches. Assert the positive first, on the same locator.
   - `snapshot.txt` omits elements with no text, such as a group header's chevron span.
+- **State that outlives a spec.** `repos.json` is kept in the run's temp data dir for
+  the whole run, and `relaunch()` keeps it. A spec that adds a repo must remove it
+  before it ends: `sidebar-rows.spec.ts` expects no groups at all under `empty`. After
+  `relaunch()`, everything the app kept only in memory is gone, such as sort keys and
+  open panes.
+- **A `<select>`'s options can't be chosen under this driver.** Neither
+  `selectBy…()` nor clicking an `<option>` changes the value, so the app has no
+  `<select>`.
 - **Fixture `cwd`s don't exist**, so a click on one of their sessions shows the "no
   longer exists" message and attaches nothing. Build attachable lists with
   `attachable()`.

@@ -3,9 +3,62 @@
  * launches it once), so a spec sets what the fake `claude` answers and waits for the app
  * to have polled it, rather than relaunching.
  */
+import { execFileSync, spawn } from "node:child_process";
+import { openSync } from "node:fs";
+import { join } from "node:path";
 import { FakeClaude } from "./fake-claude.js";
+import { ROOT } from "./results.js";
 
 export const fake = FakeClaude.shared();
+
+/** The e2e build of the app, as the service launches it. */
+export const APP_BINARY = join(ROOT, "src-tauri", "target", "e2e", "debug", "oscillate");
+
+/** The pids of every running e2e app (normally one). */
+export function appPids(): number[] {
+  const out = execFileSync("ps", ["-axo", "pid=,stat=,command="], { encoding: "utf8" });
+  return out
+    .split("\n")
+    .map((l) => l.trim().match(/^(\d+)\s+(\S+)\s+(.*)$/))
+    .filter((m): m is RegExpMatchArray => !!m && !m[2].startsWith("Z") && (m[3] === APP_BINARY || m[3].startsWith(`${APP_BINARY} `)))
+    .map((m) => Number(m[1]));
+}
+
+/**
+ * Quits the app and launches it again, as a new process with the same environment
+ * (so the same fake, watched dir and data dir), then opens a new WebDriver session on
+ * it. Anything the app keeps only in memory is gone; `repos.json` is not. The old
+ * process gets SIGTERM, so its PTYs close and their attaches get a hangup.
+ */
+export async function relaunch(): Promise<void> {
+  const port = browser.options.port;
+  if (!port) throw new Error("relaunch(): the WebDriver port isn't known");
+  const old = appPids();
+  for (const pid of old) process.kill(pid, "SIGTERM");
+  await browser.waitUntil(() => appPids().every((p) => !old.includes(p)), {
+    timeout: 10_000,
+    timeoutMsg: `the app (pids ${old}) did not exit within 10s of SIGTERM`,
+  });
+  const log = openSync(join(fake.dir, "relaunch.log"), "a");
+  const child = spawn(APP_BINARY, [], {
+    env: { ...process.env, ...fake.appEnv(), TAURI_WEBDRIVER_PORT: String(port), WDIO_EMBEDDED_SERVER: "true" },
+    detached: true,
+    stdio: ["ignore", log, log],
+  });
+  child.unref();
+  const deadline = Date.now() + 60_000;
+  for (;;) {
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/status`);
+      if (res.ok) break;
+    } catch {
+      // Not listening yet.
+    }
+    if (Date.now() > deadline) throw new Error("relaunch(): the app's WebDriver server never came up");
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  await browser.reloadSession();
+}
 
 /**
  * Resolves once the app has run `claude agents` at least once after this call, so
