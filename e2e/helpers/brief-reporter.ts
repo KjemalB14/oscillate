@@ -2,8 +2,10 @@
  * Records each test's outcome as a JSON line in `e2e/.results/tests.jsonl`. The config's
  * `onComplete` turns those into the one summary line and, on failure, `brief.md`.
  * Each spec file runs in its own worker, so reporters append rather than overwrite.
+ * A failed hook is recorded as a failure too: mocha skips the rest of its suite without
+ * reporting those tests, so otherwise the run would look green with tests missing.
  */
-import WDIOReporter, { type TestStats } from "@wdio/reporter";
+import WDIOReporter, { type HookStats, type TestStats } from "@wdio/reporter";
 import { appendFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -16,7 +18,7 @@ export default class BriefReporter extends WDIOReporter {
     super({ ...options, stdout: false });
   }
 
-  private record(test: TestStats, outcome: "passed" | "failed" | "skipped") {
+  private record(test: TestStats | HookStats, outcome: "passed" | "failed" | "skipped", title?: string) {
     const file = `${RESULTS}/tests.jsonl`;
     mkdirSync(dirname(file), { recursive: true });
     const error = test.errors?.[0] ?? test.error;
@@ -25,7 +27,7 @@ export default class BriefReporter extends WDIOReporter {
       JSON.stringify({
         outcome,
         spec: specPath(this.runnerStat?.specs?.[0]),
-        title: test.fullTitle,
+        title: title ?? (test as TestStats).fullTitle,
         ms: test.duration,
         error: error ? String(error.message ?? error).slice(0, 2000) : undefined,
       }) + "\n",
@@ -42,5 +44,9 @@ export default class BriefReporter extends WDIOReporter {
 
   onTestSkip(test: TestStats) {
     this.record(test, "skipped");
+  }
+
+  onHookEnd(hook: HookStats) {
+    if (hook.error || hook.errors?.length) this.record(hook, "failed", `hook: ${hook.parent} ${hook.title}`);
   }
 }
