@@ -107,6 +107,11 @@ fn strip_ansi(s: &str) -> String {
     out
 }
 
+/// Whether `--bg`'s stderr is the trust error.
+fn is_untrusted(stderr: &str) -> bool {
+    stderr.trim_start().starts_with(UNTRUSTED)
+}
+
 /// Runs `--bg` and returns the new session's id, or the text to show verbatim: stderr,
 /// then stdout.
 pub fn start(resolver: &Resolver, cwd: &str, mode: Option<&str>, prompt: &str) -> Result<String, StartError> {
@@ -148,7 +153,7 @@ pub fn start(resolver: &Resolver, cwd: &str, mode: Option<&str>, prompt: &str) -
     };
     let (stdout, stderr) = (stdout.join().unwrap(), stderr.join().unwrap());
     if !status.success() {
-        let untrusted = stderr.trim_start().starts_with(UNTRUSTED);
+        let untrusted = is_untrusted(&stderr);
         let mut shown = if stderr.trim().is_empty() { String::new() } else { stderr };
         if !stdout.trim().is_empty() {
             if !shown.is_empty() && !shown.ends_with('\n') {
@@ -231,7 +236,7 @@ mod tests {
         let (_dir, resolver) = fake("echo out; echo 'Workspace not trusted' >&2; exit 3");
         let repo = tempfile::tempdir().unwrap();
         let err = start(&resolver, repo.path().to_str().unwrap(), None, "p").unwrap_err();
-        assert_eq!(err.message, "Workspace not trusted\nout\n");
+        assert_eq!(err, StartError { untrusted: true, message: "Workspace not trusted\nout\n".into() });
         let (_dir, resolver) = fake("echo 'no such mode' >&2; exit 2");
         let err = start(&resolver, repo.path().to_str().unwrap(), None, "p").unwrap_err();
         assert_eq!(err, StartError { untrusted: false, message: "no such mode\n".into() });
@@ -240,10 +245,7 @@ mod tests {
     #[test]
     fn the_real_trust_error_is_told_apart() {
         let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/bg/untrusted-2.1.284.txt");
-        let (_dir, resolver) = fake(&format!("cat '{}' >&2; exit 1", path.display()));
-        let repo = tempfile::tempdir().unwrap();
-        let err = start(&resolver, repo.path().to_str().unwrap(), Some("plan"), "p").unwrap_err();
-        assert!(err.untrusted);
-        assert_eq!(err.message, std::fs::read_to_string(path).unwrap());
+        assert!(is_untrusted(&std::fs::read_to_string(path).unwrap()));
+        assert!(!is_untrusted("error: unknown option '--permission-mode'\n"));
     }
 }
