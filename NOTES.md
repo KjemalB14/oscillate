@@ -62,7 +62,8 @@ The app treats stderr that starts with `Workspace not trusted` as the trust erro
     refused for good.
   - So `TrustInfo` (cwd, label, prompt, mode) lives with the PTY. On load the page asks
     `trust_current`, and `trust_open` for the same `cwd` rebinds the output and exit
-    channels instead of spawning. The sender no longer stops when a send fails.
+    channels instead of spawning. Its sender keeps going when a send fails; an
+    attach's still stops.
   - **Rejected:** Rust doing the retry itself, so it also survives a reload. That puts
     the box's whole flow in two places.
 - **"+" anywhere, while a trust pane is open, shows that pane and spawns nothing.**
@@ -104,8 +105,13 @@ The app treats stderr that starts with `Workspace not trusted` as the trust erro
   `tty.pl`'s attach loop has the same shape, but it logs no signals, so it was left.
 - **`press("/")` sent keyCode 47,** which xterm.js drops. `press()` now maps `/ . , -`
   to their key codes.
-- **A flake:** `sidebar-order.spec.ts`'s reload test timed out (30s) in one full run
-  out of three. It passed alone and in both other runs. Not investigated.
+- **The reload test flaked, probably because of this slice.** `sidebar-order.spec.ts`'s
+  reload test timed out (30s) in 2 full runs out of 5. It always passed alone.
+  - To survive a reload, the PTY sender had been changed to keep sending after a failed
+    send, where it used to stop. The attach PTYs went back to stopping, and only the
+    trust PTY, which is rebound, keeps going.
+  - After that, 3 full runs out of 3 passed. That doesn't prove the cause (nothing
+    checked main), but it's the only change here that touches a reload's traffic.
 
 ### Not verified
 

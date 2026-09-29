@@ -343,6 +343,8 @@ fn spawn(
         .openpty(PtySize { rows, cols, pixel_width: 0, pixel_height: 0 })
         .map_err(|e| e.to_string())?;
 
+    // Only the trust PTY outlives its page, to be rebound; an attach stops sending.
+    let rebindable = matches!(kind, Kind::Trust(_));
     let mut live = admit(ptys, &kind)?;
     let mut child = pair.slave.spawn_command(cmd).map_err(|e| e.to_string())?;
     let pid = child.process_id();
@@ -388,9 +390,11 @@ fn spawn(
                         Err(_) => break,
                     }
                 }
-                // A page that is gone drops this batch; a reloaded one rebinds the trust
-                // PTY's channel and gets the rest.
-                let _ = on_data.lock().unwrap().send(InvokeResponseBody::Raw(batch));
+                // A reloaded page rebinds the trust PTY's channel and gets the rest.
+                let sent = on_data.lock().unwrap().send(InvokeResponseBody::Raw(batch));
+                if sent.is_err() && !rebindable {
+                    break;
+                }
             }
         })
         .map_err(|e| e.to_string())?;
