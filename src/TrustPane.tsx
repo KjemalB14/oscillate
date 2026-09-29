@@ -13,6 +13,8 @@ export const TRUST_LABEL = "Accept trust, then /exit";
 interface Props {
   info: TrustInfo;
   visible: boolean;
+  /** Changes whenever the pane is asked for; it then takes the keyboard. */
+  focusRequest: number;
   /** The trust `claude` has exited, for whatever reason. */
   onExit: () => void;
   /** It couldn't be started at all. */
@@ -25,7 +27,7 @@ interface Props {
  * control, and unmounting leaves it running (Rust refuses to signal it anyway). When it
  * exits, the app retries the start once (PLAN-new-sessions.md, *Trust*).
  */
-export function TrustPane({ info, visible, onExit, onFailed }: Props) {
+export function TrustPane({ info, visible, focusRequest, onExit, onFailed }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const term = useRef<Terminal>(null);
   const fit = useRef<FitAddon>(null);
@@ -102,7 +104,7 @@ export function TrustPane({ info, visible, onExit, onFailed }: Props) {
     if (!visible) return;
     fit.current?.fit();
     term.current?.focus();
-  }, [visible]);
+  }, [visible, focusRequest]);
 
   return (
     <section

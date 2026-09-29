@@ -39,6 +39,12 @@ export default function App() {
   // The start waiting on the trust pane; at most one.
   const [trust, setTrust] = useState<TrustInfo | null>(null);
   const [refused, setRefused] = useState<string | null>(null);
+  // Bumped each time the trust pane is asked for, so it takes focus even when showing.
+  const [trustFocus, setTrustFocus] = useState(0);
+  const showTrust = () => {
+    setSelected(TRUST);
+    setTrustFocus((n) => n + 1);
+  };
   const [selected, setSelected] = useState<string | null>(null);
   // Pane ids in the order they were opened, so a pane's DOM never moves.
   const [open, setOpen] = useState<string[]>([]);
@@ -87,7 +93,7 @@ export default function App() {
     let timer: number | undefined;
     const unlisten = listen<string>("quit-refused", (e) => {
       setRefused(e.payload);
-      setSelected(TRUST);
+      showTrust();
       clearTimeout(timer);
       timer = setTimeout(() => setRefused(null), REFUSAL_MS);
     });
@@ -107,14 +113,14 @@ export default function App() {
 
   // "+" while the trust pane is open shows it and starts nothing: one trust at a time.
   const newSession = (group: RepoGroup) => {
-    if (trust) setSelected(TRUST);
+    if (trust) showTrust();
     else setNewIn({ key: group.key, label: group.label });
   };
 
   const untrusted = (box: BoxFor, prompt: string, mode: Mode) => {
     setTrust({ cwd: box.key, label: box.label, prompt, mode: mode || null });
     setNewIn(null);
-    setSelected(TRUST);
+    showTrust();
   };
 
   // The trust `claude` exited: the box reopens and retries once, with what it kept.
@@ -137,7 +143,7 @@ export default function App() {
         onRemoveRepo={repos.remove}
         onNewSession={newSession}
         trust={trust && { label: trust.label, selected: selected === TRUST }}
-        onShowTrust={() => setSelected(TRUST)}
+        onShowTrust={showTrust}
       />
       <main className="pane-area">
         {open.map((id) => (
@@ -156,6 +162,7 @@ export default function App() {
             key={trust.cwd}
             info={trust}
             visible={selected === TRUST}
+            focusRequest={trustFocus}
             onExit={() => trustEnded(trust)}
             onFailed={(message) => trustEnded(trust, message)}
           />
