@@ -126,14 +126,33 @@ The app treats stderr that starts with `Workspace not trusted` as the trust erro
   - **This was caught after the merge.** The merge command didn't stop on the failed
     `cargo test`, so the fix went in on its own branch.
 
-### Not verified
+### Item 17, by hand, after the merge
 
-- **Item 17** (by hand, release app) is open, for the same reason as item 12:
-  `drive-window` can't send Apple Events from a `claude --bg` job.
-  `/Applications/Oscillate.app` doesn't have slice 3 yet.
-- **The native Cmd+Q path.** e2e presses Cmd+Q in the page. The menu accelerator,
-  which a real key hits first, calls the same command, but it's unchecked. Item 17
-  can check it: press Cmd+Q while the trust pane is open.
+`/Applications/Oscillate.app` was rebuilt from `19e873d` and reinstalled. The author
+drove it in a new `mktemp -d` git repo, added with "Add repo…" (Claude Code 2.1.284).
+- **"No, exit" passed.** "+" in plan mode opened the pane labelled "Accept trust,
+  then /exit". Cmd+Q, pressed with the real key, showed "Answer the trust prompt
+  first", and the app stayed open. So the menu accelerator path works too. After "No,
+  exit", the box showed "Not trusted, nothing started" with the prompt kept. `agents
+  --json --all` listed nothing for that directory, and `~/.claude.json` had no entry
+  for it.
+- **The accepted branch passed**, but it took two tries.
+  - **The first report was wrong.** The author answered "started and attached" before
+    doing it, and the listing, the jobs directory and `~/.claude.json` all showed
+    nothing. Checking the disk before recording caught it.
+  - **The second try:** Start in the kept box, then "Yes, proceed", then `/exit`. The
+    retry started `92684206` in that `cwd`, and trust was recorded for it. The row was
+    selected and its pane attached.
+  - The pane then showed "Detached". The session's own transcript ends in `❯ /exit`,
+    typed after it had answered. The author had typed `/exit` a second time, because
+    the first "didn't seem to take", and by then the keyboard belonged to the new
+    session. A PTY attach from a script stayed attached for 8s, so `claude attach`
+    doesn't leave by itself. `claude rm` removed the session.
+  - **A usability gap:** after the trust `claude` exits, nothing shows for the second
+    or so of the retry, so a user repeats the last keys into the new session. It's in
+    `BACKLOG.md`.
+
+### Not verified
 - **Dock → Quit and logout still end the app** while a trust pane is open, since
   they send `terminate:`. The trust `claude` then gets the kernel's hangup.
 - **The reload rebind** has no spec. After a rebind, the pane stays blank until
