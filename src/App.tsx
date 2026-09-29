@@ -1,10 +1,14 @@
 import { useEffect, useRef, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import "./App.css";
 import type { RepoGroup } from "./groups";
-import { NewSessionBox } from "./NewSessionBox";
+import { NewSessionBox, type Mode } from "./NewSessionBox";
+import type { TrustInfo } from "./pty";
 import { useAddedRepos } from "./repos";
 import { Sidebar } from "./Sidebar";
 import { TerminalPane, type PaneStatus } from "./TerminalPane";
+import { TrustPane } from "./TrustPane";
 import { useSessions } from "./sessions";
 
 /**
@@ -14,11 +18,27 @@ import { useSessions } from "./sessions";
  */
 export const PANE_CAP = 6;
 
+/** `selected` while the trust pane shows; never a session id, which is alphanumeric. */
+const TRUST = ":trust";
+
+/** How long the quit refusal stays up. */
+const REFUSAL_MS = 5000;
+
+/** The prompt box: its group, and what it opens with (after the trust pane, a retry). */
+interface BoxFor {
+  key: string;
+  label: string;
+  initial?: { prompt: string; mode: Mode; retry: boolean; error?: string };
+}
+
 export default function App() {
   const sessions = useSessions();
   const repos = useAddedRepos();
   // The group whose "+" prompt box is open; one box at a time.
-  const [newIn, setNewIn] = useState<RepoGroup | null>(null);
+  const [newIn, setNewIn] = useState<BoxFor | null>(null);
+  // The start waiting on the trust pane; at most one.
+  const [trust, setTrust] = useState<TrustInfo | null>(null);
+  const [refused, setRefused] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   // Pane ids in the order they were opened, so a pane's DOM never moves.
   const [open, setOpen] = useState<string[]>([]);
@@ -53,8 +73,57 @@ export default function App() {
     if (!sessions) return;
     const listed = new Set(sessions.map((s) => s.id));
     setOpen((prev) => (prev.every((id) => listed.has(id)) ? prev : prev.filter((id) => listed.has(id))));
-    setSelected((id) => (id && !listed.has(id) ? null : id));
+    setSelected((id) => (id && id !== TRUST && !listed.has(id) ? null : id));
   }, [sessions]);
+
+  // A reloaded page finds a trust pane that is still open; Rust kept it.
+  useEffect(() => {
+    invoke<TrustInfo | null>("trust_current").then((info) => info && setTrust(info));
+  }, []);
+
+  // While the trust pane is open, quitting is refused (in Rust); this says why. Cmd+Q
+  // pressed in the page is sent to Rust too, since the menu never sees it.
+  useEffect(() => {
+    let timer: number | undefined;
+    const unlisten = listen<string>("quit-refused", (e) => {
+      setRefused(e.payload);
+      setSelected(TRUST);
+      clearTimeout(timer);
+      timer = setTimeout(() => setRefused(null), REFUSAL_MS);
+    });
+    const onKey = (e: KeyboardEvent) => {
+      if (!e.metaKey || e.key.toLowerCase() !== "q") return;
+      e.preventDefault();
+      e.stopPropagation();
+      invoke("quit").catch(() => {}); // a refusal arrives as `quit-refused`
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => {
+      clearTimeout(timer);
+      void unlisten.then((f) => f());
+      window.removeEventListener("keydown", onKey, true);
+    };
+  }, []);
+
+  // "+" while the trust pane is open shows it and starts nothing: one trust at a time.
+  const newSession = (group: RepoGroup) => {
+    if (trust) setSelected(TRUST);
+    else setNewIn({ key: group.key, label: group.label });
+  };
+
+  const untrusted = (box: BoxFor, prompt: string, mode: Mode) => {
+    setTrust({ cwd: box.key, label: box.label, prompt, mode: mode || null });
+    setNewIn(null);
+    setSelected(TRUST);
+  };
+
+  // The trust `claude` exited: the box reopens and retries once, with what it kept.
+  const trustEnded = (info: TrustInfo, error?: string) => {
+    setTrust(null);
+    setSelected((id) => (id === TRUST ? null : id));
+    const initial = { prompt: info.prompt, mode: (info.mode ?? "") as Mode, retry: !error, error };
+    setNewIn({ key: info.cwd, label: info.label, initial });
+  };
 
   const byId = new Map((sessions ?? []).map((s) => [s.id, s]));
   return (
@@ -66,7 +135,9 @@ export default function App() {
         added={repos.list}
         onAddRepo={repos.add}
         onRemoveRepo={repos.remove}
-        onNewSession={setNewIn}
+        onNewSession={newSession}
+        trust={trust && { label: trust.label, selected: selected === TRUST }}
+        onShowTrust={() => setSelected(TRUST)}
       />
       <main className="pane-area">
         {open.map((id) => (
@@ -80,16 +151,32 @@ export default function App() {
             onReattach={reattach}
           />
         ))}
+        {trust && (
+          <TrustPane
+            key={trust.cwd}
+            info={trust}
+            visible={selected === TRUST}
+            onExit={() => trustEnded(trust)}
+            onFailed={(message) => trustEnded(trust, message)}
+          />
+        )}
         {selected === null && <p className="pane-empty">Select a session to open it here.</p>}
         {newIn && (
           <NewSessionBox
-            key={newIn.key}
+            key={`${newIn.key}:${newIn.initial ? "retry" : "new"}`}
             cwd={newIn.key}
             label={newIn.label}
             sessions={sessions}
+            initial={newIn.initial}
             onStarted={select}
+            onUntrusted={(prompt, mode) => untrusted(newIn, prompt, mode)}
             onClose={() => setNewIn(null)}
           />
+        )}
+        {refused && (
+          <p className="quit-refused" role="alert">
+            {refused}
+          </p>
         )}
       </main>
     </div>

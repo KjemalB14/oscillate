@@ -1,5 +1,6 @@
 //! PTYs owned by Rust, streamed to xterm.js over a Tauri `Channel`. Each runs
-//! `claude attach <id>` for one session, in that session's own `cwd`.
+//! `claude attach <id>` for one session, in that session's own `cwd`, except the one
+//! trust PTY: interactive `claude` in a repo whose `--bg` said `Workspace not trusted`.
 //!
 //! Output is sent as raw bytes. The reader thread pauses once `HIGH_WATER` bytes are in
 //! flight to the webview, and resumes as xterm.js acks what it has parsed. That
@@ -11,6 +12,12 @@
 //! that has stopped being `claude attach <id>`, because ← execs agent view in the same
 //! pid (NOTES.md, chapter 2 slice 3), and agent view could attach this PTY to another
 //! session.
+//!
+//! **The app never signals the trust PTY's child** (PLAN-new-sessions.md, *Trust*): a
+//! `claude` killed at the trust prompt once left its folder trusted (NOTES.md, *An
+//! incident not to repeat*). `Pty::close_with` is the one place every kill goes through,
+//! and it refuses a trust PTY. So the pool, the ← watch, a reload and app exit all pass it
+//! by, and quitting is refused while it lives (`trust_info`).
 
 use std::collections::HashMap;
 use std::ffi::OsString;
@@ -22,6 +29,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use portable_pty::{native_pty_system, ChildKiller, CommandBuilder, MasterPty, PtySize};
+use serde::{Deserialize, Serialize};
 use tauri::ipc::{Channel, InvokeResponseBody};
 use tauri::{AppHandle, Manager, State};
 
@@ -80,14 +88,37 @@ pub struct Ptys {
     reaped: Condvar,
 }
 
+/// A pending start that ran into `Workspace not trusted`: where the trust `claude` runs,
+/// and the prompt and mode kept for the one retry. Rust keeps it so a reloaded page finds
+/// the trust pane again rather than orphaning a process the app may never kill.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TrustInfo {
+    pub cwd: String,
+    pub label: String,
+    pub prompt: String,
+    pub mode: Option<String>,
+}
+
+enum Kind {
+    /// `claude attach <session>`.
+    Attach(String),
+    /// Interactive `claude` at the trust prompt; never signalled by the app.
+    Trust(TrustInfo),
+}
+
+type DataChannel = Arc<Mutex<Channel<InvokeResponseBody>>>;
+type ExitChannel = Arc<Mutex<Channel<Option<u32>>>>;
+
 struct Pty {
-    /// The session this PTY runs `claude attach` for.
-    session: String,
+    kind: Kind,
     pid: Option<u32>,
     writer: Box<dyn Write + Send>,
     master: Box<dyn MasterPty + Send>,
     killer: Box<dyn ChildKiller + Send + Sync>,
     flow: Arc<Flow>,
+    /// Where output and the exit go; a reloaded page rebinds the trust PTY's.
+    on_data: DataChannel,
+    on_exit: ExitChannel,
     /// When it was told to go. It stays in `live` until its child is reaped.
     closing: Option<Instant>,
     /// The watch has seen the child as `attach <id>`. Until then its argv may still be the
@@ -96,14 +127,22 @@ struct Pty {
 }
 
 impl Pty {
+    fn session(&self) -> Option<&str> {
+        match &self.kind {
+            Kind::Attach(session) => Some(session),
+            Kind::Trust(_) => None,
+        }
+    }
+
     /// Hangs up the child, which for `claude attach` is a detach. Idempotent.
     fn close(&mut self) {
         self.close_with(libc::SIGHUP);
     }
 
-    /// Ends the child with `sig`. Idempotent: only the first close signals.
+    /// Ends the child with `sig`. Idempotent: only the first close signals. A trust PTY
+    /// is never closed: its child exits only when the user answers it.
     fn close_with(&mut self, sig: libc::c_int) {
-        if self.closing.is_some() {
+        if self.closing.is_some() || matches!(self.kind, Kind::Trust(_)) {
             return;
         }
         self.closing = Some(Instant::now());
@@ -154,6 +193,12 @@ impl Flow {
         self.state.lock().unwrap().closed = true;
         self.cv.notify_all();
     }
+
+    /// A new page acks from zero; what the old one never acked is forgotten.
+    fn reset(&self) {
+        self.state.lock().unwrap().in_flight = 0;
+        self.cv.notify_all();
+    }
 }
 
 /// Spawns `claude attach <session>` in the session's `cwd`, and returns the PTY's id.
@@ -175,17 +220,122 @@ pub fn pty_spawn(
     // rather than swapped for $HOME, which would ask (NOTES.md, *Chapter 2 closed*).
     let cwd = crate::session_cwd(&app, &session)
         .ok_or_else(|| format!("{session} isn't listed by `claude agents`"))?;
-    if !Path::new(&cwd).is_dir() {
+    let args = ["attach".to_string(), session.clone()];
+    spawn(app, &ptys, Kind::Attach(session), &args, &cwd, cols, rows, on_data, on_exit)
+}
+
+/// Opens the trust pane's PTY: interactive `claude`, no arguments, in `info.cwd`. If the
+/// trust PTY for that `cwd` is already running (the page was reloaded), it is rebound to
+/// these channels instead, so there is never a second one. Returns the PTY's id.
+#[tauri::command(async)]
+pub fn trust_open(
+    app: AppHandle,
+    ptys: State<'_, Ptys>,
+    info: TrustInfo,
+    cols: u16,
+    rows: u16,
+    on_data: Channel<InvokeResponseBody>,
+    on_exit: Channel<Option<u32>>,
+) -> Result<u32, String> {
+    {
+        let live = ptys.live.lock().unwrap();
+        let open = live.iter().find_map(|(&id, p)| match &p.kind {
+            Kind::Trust(open) => Some((id, p, open)),
+            Kind::Attach(_) => None,
+        });
+        if let Some((id, pty, open)) = open {
+            if open.cwd != info.cwd {
+                return Err(format!("a trust prompt is already open in {}", open.cwd));
+            }
+            *pty.on_data.lock().unwrap() = on_data;
+            *pty.on_exit.lock().unwrap() = on_exit;
+            pty.flow.reset();
+            let _ = pty.master.resize(PtySize { rows, cols, pixel_width: 0, pixel_height: 0 });
+            return Ok(id);
+        }
+    }
+    let cwd = info.cwd.clone();
+    spawn(app, &ptys, Kind::Trust(info), &[], &cwd, cols, rows, on_data, on_exit)
+}
+
+/// The open trust pane's start, if any; a page asks on load.
+#[tauri::command]
+pub fn trust_current(ptys: State<'_, Ptys>) -> Option<TrustInfo> {
+    trust_info(&ptys)
+}
+
+/// The trust PTY's start while its `claude` runs; quitting is refused while it does.
+pub fn trust_info(ptys: &Ptys) -> Option<TrustInfo> {
+    trust_in(&ptys.live.lock().unwrap()).cloned()
+}
+
+/// Checks `kind` may start under the `live` lock, and returns the lock held. Invariant 3
+/// for attaches; at most one trust PTY.
+fn admit<'a>(ptys: &'a Ptys, kind: &Kind) -> Result<std::sync::MutexGuard<'a, HashMap<u32, Pty>>, String> {
+    let mut live = ptys.live.lock().unwrap();
+    match kind {
+        Kind::Trust(_) => {
+            if let Some(open) = trust_in(&live) {
+                return Err(format!("a trust prompt is already open in {}", open.cwd));
+            }
+            Ok(live)
+        }
+        // The check and the insert happen under one lock, so two spawns for the same
+        // session can't both get through. A PTY that is closing still counts until its
+        // child is reaped, so a quick reattach waits for it instead of overlapping it.
+        Kind::Attach(session) => {
+            let deadline = Instant::now() + SPAWN_WAIT;
+            loop {
+                match live.values().find(|pty| pty.session() == Some(session)) {
+                    None => return Ok(live),
+                    Some(pty) if pty.closing.is_none() => {
+                        return Err(format!("already attached to {session}"));
+                    }
+                    Some(_) => {
+                        let left = deadline.saturating_duration_since(Instant::now());
+                        if left.is_zero() {
+                            return Err(format!("{session} is still detaching; try again"));
+                        }
+                        live = ptys.reaped.wait_timeout(live, left).unwrap().0;
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn trust_in(live: &HashMap<u32, Pty>) -> Option<&TrustInfo> {
+    live.values().find_map(|p| match &p.kind {
+        Kind::Trust(info) => Some(info),
+        Kind::Attach(_) => None,
+    })
+}
+
+/// Spawns `claude <args>` in `cwd` on a new PTY, streaming to `on_data`, and returns the
+/// PTY's id.
+#[allow(clippy::too_many_arguments)]
+fn spawn(
+    app: AppHandle,
+    ptys: &Ptys,
+    kind: Kind,
+    args: &[String],
+    cwd: &str,
+    cols: u16,
+    rows: u16,
+    on_data: Channel<InvokeResponseBody>,
+    on_exit: Channel<Option<u32>>,
+) -> Result<u32, String> {
+    if !Path::new(cwd).is_dir() {
         return Err(format!("{cwd} no longer exists"));
     }
     let claude = resolver().get()?;
     let mut cmd = CommandBuilder::new(&claude.path);
-    cmd.args(["attach", &session]);
+    cmd.args(args);
     cmd.env_clear();
     for (key, value) in child_env(&claude) {
         cmd.env(key, value);
     }
-    cmd.cwd(&cwd);
+    cmd.cwd(cwd);
     cmd.env("TERM", "xterm-256color");
     cmd.env("COLORTERM", "truecolor");
 
@@ -193,26 +343,7 @@ pub fn pty_spawn(
         .openpty(PtySize { rows, cols, pixel_width: 0, pixel_height: 0 })
         .map_err(|e| e.to_string())?;
 
-    // Invariant 3: the check and the insert happen under one lock, so two spawns for the
-    // same session can't both get through. A PTY that is closing still counts until its
-    // child is reaped, so a quick reattach waits for it instead of overlapping it.
-    let mut live = ptys.live.lock().unwrap();
-    let deadline = Instant::now() + SPAWN_WAIT;
-    loop {
-        match live.values().find(|pty| pty.session == session) {
-            None => break,
-            Some(pty) if pty.closing.is_none() => {
-                return Err(format!("already attached to {session}"));
-            }
-            Some(_) => {
-                let left = deadline.saturating_duration_since(Instant::now());
-                if left.is_zero() {
-                    return Err(format!("{session} is still detaching; try again"));
-                }
-                live = ptys.reaped.wait_timeout(live, left).unwrap().0;
-            }
-        }
-    }
+    let mut live = admit(ptys, &kind)?;
     let mut child = pair.slave.spawn_command(cmd).map_err(|e| e.to_string())?;
     let pid = child.process_id();
     // The master only reads EOF once every slave fd is closed.
@@ -222,17 +353,21 @@ pub fn pty_spawn(
     let writer = pair.master.take_writer().map_err(|e| e.to_string())?;
     let killer = child.clone_killer();
     let flow = Arc::new(Flow::default());
+    let on_data: DataChannel = Arc::new(Mutex::new(on_data));
+    let on_exit: ExitChannel = Arc::new(Mutex::new(on_exit));
 
     let id = ptys.next_id.fetch_add(1, Ordering::Relaxed);
     live.insert(
         id,
         Pty {
-            session,
+            kind,
             pid,
             writer,
             master: pair.master,
             killer,
             flow: flow.clone(),
+            on_data: on_data.clone(),
+            on_exit: on_exit.clone(),
             closing: None,
             armed: false,
         },
@@ -253,9 +388,9 @@ pub fn pty_spawn(
                         Err(_) => break,
                     }
                 }
-                if on_data.send(InvokeResponseBody::Raw(batch)).is_err() {
-                    break;
-                }
+                // A page that is gone drops this batch; a reloaded one rebinds the trust
+                // PTY's channel and gets the rest.
+                let _ = on_data.lock().unwrap().send(InvokeResponseBody::Raw(batch));
             }
         })
         .map_err(|e| e.to_string())?;
@@ -286,7 +421,7 @@ pub fn pty_spawn(
             let ptys = app.state::<Ptys>();
             ptys.live.lock().unwrap().remove(&id);
             ptys.reaped.notify_all();
-            let _ = on_exit.send(code);
+            let _ = on_exit.lock().unwrap().send(code);
         })
         .map_err(|e| e.to_string())?;
 
@@ -324,7 +459,7 @@ pub fn pty_kill(ptys: State<'_, Ptys>, id: u32) {
     }
 }
 
-/// Called on app exit and page reload: detaches every PTY.
+/// Called on app exit and page reload: detaches every PTY but the trust PTY.
 pub fn kill_all(ptys: &Ptys) {
     for pty in ptys.live.lock().unwrap().values_mut() {
         pty.close();
@@ -334,7 +469,8 @@ pub fn kill_all(ptys: &Ptys) {
 /// Closes the PTY of every session that is no longer listed.
 pub fn close_unlisted(ptys: &Ptys, sessions: &[Session]) {
     for pty in ptys.live.lock().unwrap().values_mut() {
-        if !sessions.iter().any(|s| s.id.as_deref() == Some(pty.session.as_str())) {
+        let Some(session) = pty.session() else { continue };
+        if !sessions.iter().any(|s| s.id.as_deref() == Some(session)) {
             pty.close();
         }
     }
@@ -351,11 +487,13 @@ pub fn watch(app: AppHandle) {
             let ptys = app.state::<Ptys>();
             for pty in ptys.live.lock().unwrap().values_mut() {
                 let Some(pid) = pty.pid else { continue };
+                // The trust `claude` isn't an attach, and is never the watch's to end.
+                let Some(session) = pty.session().map(str::to_owned) else { continue };
                 match pty.closing {
                     None => {
                         // Agent view is only a viewer, and on a hangup it takes ~0.5s to exit,
                         // so it is killed outright. A real attach keeps its hangup.
-                        if left_attach(&mut pty.armed, argv(pid).as_deref(), &pty.session) {
+                        if left_attach(&mut pty.armed, argv(pid).as_deref(), &session) {
                             pty.close_with(libc::SIGKILL);
                         }
                     }

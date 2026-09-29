@@ -37,7 +37,7 @@ when nothing changed.
   the fake answers and waits for the app to poll it; it never relaunches the app.
 - **`helpers/fake-claude.ts`** is a TS port of `src-tauri/src/testutil.rs`'s fake. The
   app runs its `claude` children with a clean environment, so the fake reads files
-  beside itself, never env vars. It answers four commands and logs each one (any other
+  beside itself, never env vars. It answers five commands and logs each one (any other
   arguments log `unexpected: …`):
   - `agents --json --all` prints the file `out` and logs `poll`.
   - `--bg …` logs `bg pid=<n> at=<ms> cwd=<dir> argv=<hex>,…`, every argument hex-encoded
@@ -45,6 +45,19 @@ when nothing changed.
     `fake.answerBg()` set. By default that's the stdout a real `claude --bg` printed
     (Claude Code 2.1.284, `fixtures/bg-stdout.txt`, colors included), with the given id,
     and exit 0. It starts no session and writes nothing under the watched dir.
+    - **In a directory `fake.untrust()` listed**, `--bg` fails as a real one does there,
+      whatever `answerBg` says. It exits 1 with empty stdout, and stderr is the line a
+      real one printed (`fixtures/bg-untrusted-stderr.txt`, naming its own cwd):
+      ``Workspace not trusted. Run `claude` in <dir> once and accept the trust prompt,
+      then retry.``
+  - `claude` with **no arguments** is the interactive trust prompt, run by `trust.pl`.
+    It logs `trust pid=<n> at=<ms> cwd=<dir> argv=` and shows a trust prompt.
+    - `"1"` or Enter accepts. The cwd leaves the untrusted list, and it then exits 0 on
+      `/exit` + Enter. `"2"` or Esc is "No, exit": it exits 1, and the cwd stays untrusted.
+    - It logs every signal that could end or stop it, as `trust-signal pid=<n>
+      sig=<NAME>`. SIGWINCH is left out, because a resize sends it. HUP, INT, QUIT, TERM,
+      PIPE, ALRM, USR1 and USR2 then end it, as they would end the real one. Every exit
+      is logged as `trust-exit pid=<n> how=<accepted|declined|signal-NAME|eof>`.
   - `attach <id>` runs `tty.pl`, a Perl keylogger. It logs `attach <id> pid=<n>
     cwd=<dir>` and turns on mouse and focus reports, as Claude's TUI does. Then it logs
     every byte it reads, as `keys <id> <pid> <hex>`.
@@ -70,6 +83,11 @@ when nothing changed.
   - `fake.answerBg({ id, stdout?, stderr?, exit?, delayMs? })` sets the next `--bg`
     answer. A non-zero `exit` defaults stdout to empty. `fake.bgs()` reads back every
     `--bg`: `{ pid, at, cwd, argv }`, with `argv` decoded and byte-exact.
+  - `fake.untrust(dir)` makes `--bg` fail there with the trust error. `fake.trust(dir)`
+    undoes it, as accepting the fake prompt does, and `fake.untrusted()` lists them.
+    `fake.trusts()` reads back every trust `claude` (`{ pid, at, cwd, argv }`, with
+    `argv` empty when it got no arguments). `fake.trustSignals(pid?)` and
+    `fake.trustExits()` read the rest, and `fake.running().trust` lists the live ones.
   - `fake.pick(dir | null)` answers the app's next "Add repo…" folder picker (`null`
     cancels). The e2e build reads it instead of opening the native dialog.
     `fake.reposJson()` reads the app's `repos.json` (`null` if there's none).
@@ -80,7 +98,10 @@ when nothing changed.
     environment, then opens a new WebDriver session on it. `appPids()` lists the running
     e2e app's pids.
   - `press(...keys)` types into the focused terminal pane: `"ArrowLeft"`, `"Ctrl+Z"`,
-    `"Escape"`, `"Enter"`, or any text. **Don't use `browser.keys()` in a pane.** This
+    `"Escape"`, `"Enter"`, `"Cmd+Q"`, or any text. **Don't use `browser.keys()` in a pane.**
+    In the running app, the menu's accelerator takes a real Cmd+Q before the page sees
+    it. `press("Cmd+Q")` reaches the page's own handler, which calls the same quit
+    command. This
     driver puts the character code in `keyCode`, so xterm.js reads `x` as `x` plus F9,
     and Ctrl+Z as Ctrl+F11.
 - **The app polls every 2s**, and within about 100ms of a change to
@@ -94,7 +115,10 @@ when nothing changed.
   - `snapshot.txt` omits elements with no text, such as a group header's chevron span.
 - **State that outlives a spec.** `repos.json` is kept in the run's temp data dir for
   the whole run, and `relaunch()` keeps it. A spec that adds a repo must remove it
-  before it ends: `sidebar-rows.spec.ts` expects no groups at all under `empty`. After
+  before it ends: `sidebar-rows.spec.ts` expects no groups at all under `empty`. The
+  same goes for the untrusted list (`fake.trust()` what you `untrust()`).
+  - **A trust pane left open blocks quitting**, and `relaunch()`'s SIGTERM would hang
+    up its `claude`. A spec that opens one must answer it before it ends. After
   `relaunch()`, everything the app kept only in memory is gone, such as sort keys and
   open panes.
 - **A `<select>`'s options can't be chosen under this driver.** Neither

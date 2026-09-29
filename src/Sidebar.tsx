@@ -58,6 +58,9 @@ interface SidebarProps {
   onRemoveRepo: (path: string) => void;
   /** "+": opens the prompt box for a new session in the group's `cwd`. */
   onNewSession: (group: RepoGroup) => void;
+  /** The open trust pane, if any: its repo's label, and whether it's showing. */
+  trust: { label: string; selected: boolean } | null;
+  onShowTrust: () => void;
 }
 
 export function Sidebar({
@@ -68,6 +71,8 @@ export function Sidebar({
   onAddRepo,
   onRemoveRepo,
   onNewSession,
+  trust,
+  onShowTrust,
 }: SidebarProps) {
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
   const toggle = (key: string) =>
@@ -148,6 +153,11 @@ export function Sidebar({
 
   return (
     <nav className="sidebar" aria-label="Sessions">
+      {trust && (
+        <button className="trust-entry" aria-current={trust.selected || undefined} onClick={onShowTrust}>
+          Trust prompt · {trust.label}
+        </button>
+      )}
       {body}
       <button className="add-repo" onClick={onAddRepo}>
         Add repo…
