@@ -34,15 +34,17 @@ Decided 2026-09-28. The decisions, rejections and acceptance criteria are in
 `PLAN-new-sessions.md`.
 
 - [x] **1. Rows stay still.** Shipped 2026-09-28 (below).
-- [x] **2. New session.** Shipped 2026-09-28 (below), except item 12, a hand check
-  in the release app that is still open.
+- [x] **2. New session.** Shipped 2026-09-28 (below). Item 12 passed by hand after the
+  merge.
   - A "+" on a repo group opens a prompt box, with a prompt and a permission mode, that
     runs `claude --bg` in that repo, then selects and attaches the new session.
   - "Add repo…" opens a folder picker, and chosen repos persist in the app's own
     `repos.json`, with "Remove from list" on their group.
-- [ ] **3. The trust pane.** An untrusted repo opens a pane running interactive `claude`
-  so you can accept trust. When it exits, the app retries once with the prompt it kept.
-  The app never kills that process.
+- [x] **3. The trust pane.** Shipped 2026-09-28, except item 17, a hand check in the
+  release app that is still open.
+  - An untrusted repo opens a pane running interactive `claude` so you can accept
+    trust. When it exits, the app retries once with the prompt it kept.
+  - The app never kills that process, and refuses Cmd+Q while it runs.
 - [ ] **4. Stop and remove.** A context menu runs `claude stop` or `claude rm` after
   closing the PTY. Only Remove asks for confirmation. An `rm` refusal is shown verbatim,
   with no `--discard-unpushed`.

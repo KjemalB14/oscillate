@@ -85,8 +85,16 @@ frozen row order, "+" and "Add repo…", the trust pane, then Stop and Remove.
     (`repos.rs`; `OSCILLATE_DATA_DIR` in e2e).
   - The fake answers `--bg` with real captured bytes, and `relaunch()` restarts the
     app mid-spec (`e2e/README.md`).
-- Slice 3, the trust pane, is next. **The trust pane's `claude` is never killed by the
-  app** (the plan says why).
+- **Slice 3 has shipped, except its hand check (item 17).**
+  - `--bg`'s `Workspace not trusted` opens `src/TrustPane.tsx`: interactive `claude` in
+    that `cwd`, outside the pool. Its exit makes the box retry once.
+  - **The app never signals the trust `claude`.** `pty.rs` refuses it in
+    `Pty::close_with`, and it keeps the pane across a reload. Quit, the Quit menu item
+    and window close are refused while it runs. The Quit item is the app's own, because
+    the stock one can't be refused.
+  - The fake models per-directory trust and a trust prompt that logs every signal
+    (`e2e/README.md`).
+- Slice 4, Stop and Remove, is next.
 
 - Dev: `npm run tauri dev`. Release binary: `npx tauri build --no-bundle`.
 - Install: quit the app, then `npx tauri build` and `ditto
