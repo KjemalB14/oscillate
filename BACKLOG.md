@@ -40,8 +40,8 @@ Decided 2026-09-28. The decisions, rejections and acceptance criteria are in
     runs `claude --bg` in that repo, then selects and attaches the new session.
   - "Add repo…" opens a folder picker, and chosen repos persist in the app's own
     `repos.json`, with "Remove from list" on their group.
-- [x] **3. The trust pane.** Shipped 2026-09-28, except item 17, a hand check in the
-  release app that is still open.
+- [x] **3. The trust pane.** Shipped 2026-09-28. Item 17 passed by hand after the
+  merge.
   - An untrusted repo opens a pane running interactive `claude` so you can accept
     trust. When it exits, the app retries once with the prompt it kept.
   - The app never kills that process, and refuses Cmd+Q while it runs.
@@ -72,6 +72,10 @@ Decided 2026-09-28. The decisions, rejections and acceptance criteria are in
 - [ ] **Composer box in the thread view** for plain replies. Anything that opens a
   dialog still brings the terminal forward.
 - [ ] **Keyboard switching.** Cmd+1–9, Cmd+N, Cmd+[ / ].
+- [ ] **Show the retry after the trust pane closes.** For the second or so between the
+  trust `claude`'s exit and the new session's attach, the app shows nothing, so a user
+  repeats `/exit` into the new session and detaches it (`NOTES.md`, *Chapter 3, slice
+  3*, item 17). A "Starting…" state in the pane's place would say it's working.
 - [ ] **Move `@xterm/*` from the 6.1.0 betas to 6.1.0 stable** once it ships. The
   betas are pinned exactly for the kitty keyboard protocol (`NOTES.md`, chapter 1
   slice 2).

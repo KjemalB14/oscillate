@@ -85,7 +85,7 @@ frozen row order, "+" and "Add repo…", the trust pane, then Stop and Remove.
     (`repos.rs`; `OSCILLATE_DATA_DIR` in e2e).
   - The fake answers `--bg` with real captured bytes, and `relaunch()` restarts the
     app mid-spec (`e2e/README.md`).
-- **Slice 3 has shipped, except its hand check (item 17).**
+- **Slice 3 has shipped**, and item 17 passed by hand in the reinstalled app.
   - `--bg`'s `Workspace not trusted` opens `src/TrustPane.tsx`: interactive `claude` in
     that `cwd`, outside the pool. Its exit makes the box retry once.
   - **The app never signals the trust `claude`.** `pty.rs` refuses it in

@@ -152,9 +152,9 @@ id, and `pty_spawn` refuses one. So a break proves it red only with both layers 
 Slice 3 shipped 2026-09-28. Items 13–16 pass under `npm run e2e`
 (`e2e/trust-pane.spec.ts`, by `e2e-author`), and every break turned red the claims it
 targets. One break stayed green at first, and item 16 was strengthened because of it
-(`NOTES.md`, *Chapter 3, slice 3*). **Item 17 is not yet checked:** it needs the release
-app driven by hand. What e2e can't show is in that entry's "Not verified". Slice 4 isn't
-started.
+(`NOTES.md`, *Chapter 3, slice 3*). **Item 17 passed by hand** in the reinstalled
+release app, both branches, and so did the real Cmd+Q refusal. What is still unchecked
+is in that entry's "Not verified". Slice 4 isn't started.
 
 Every item is checked by `npm run e2e` against the fake `claude`, unless it says it's
 checked by hand. The specs come from `e2e-author`, and each is proved red by a break.
