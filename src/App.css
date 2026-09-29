@@ -452,3 +452,60 @@ body,
   -webkit-user-select: text;
   user-select: text;
 }
+
+/* The trust pane: a terminal with a bar that says what to do in it. It has no close
+   control; its `claude` ends only when the prompt is answered. */
+.trust-bar {
+  flex: none;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--hairline);
+  background: rgb(242 184 75 / 12%);
+  color: var(--needs-you);
+  font: 12px/1.35 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+}
+
+.trust-where {
+  color: var(--muted);
+}
+
+.trust-entry {
+  display: block;
+  width: 100%;
+  margin: 0 0 8px;
+  padding: 6px 8px;
+  border: 1px solid rgb(242 184 75 / 35%);
+  border-radius: 6px;
+  background: rgb(242 184 75 / 8%);
+  color: var(--needs-you);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+}
+
+.trust-entry[aria-current],
+.trust-entry:hover {
+  background: rgb(242 184 75 / 16%);
+}
+
+.trust-entry:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+.quit-refused {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  z-index: 20;
+  margin: 0;
+  padding: 8px 12px;
+  border: 1px solid rgb(242 184 75 / 45%);
+  border-radius: 8px;
+  background: var(--rail);
+  color: var(--needs-you);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 40%);
+  font: 13px/1.35 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+}

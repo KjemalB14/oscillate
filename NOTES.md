@@ -9,6 +9,125 @@ Newest entries at the top.
 
 ---
 
+## 2026-09-28 — Chapter 3, slice 3: the trust pane
+
+### What an untrusted `--bg` prints
+
+`claude --bg --permission-mode plan "Reply with ok"` ran in a new `mktemp -d` git repo,
+with stdin closed (Claude Code 2.1.284). It **exited 1, with empty stdout**, and printed
+one line on stderr:
+
+```
+Workspace not trusted. Run `claude` in <canonical dir> once and accept the trust prompt, then retry.
+```
+
+No session was listed for that directory. The bytes are pinned twice: in
+`src-tauri/fixtures/bg/untrusted-2.1.284.txt` for the Rust test, and in
+`e2e/fixtures/bg-untrusted-stderr.txt`, which the fake answers with, naming its own cwd.
+The app treats stderr that starts with `Workspace not trusted` as the trust error.
+
+### What was built
+
+- `newsession::start` returns `StartError { untrusted, message }`.
+- The box calls `onUntrusted`. The app then opens `TrustPane.tsx`, which runs
+  `trust_open`: interactive `claude`, no arguments, in that `cwd`.
+- When the pane's process exits, the box reopens with the prompt and mode it kept, and
+  starts once by itself. A second trust error shows "Not trusted, nothing started".
+- `pty.rs` holds the trust PTY in the same map as attaches, as `Kind::Trust(TrustInfo)`.
+  **`Pty::close_with` returns early for it**, and every kill path goes through that
+  function: pane close, the pool, `close_unlisted`, `kill_all` on reload and exit. The
+  ← watch skips it outright.
+- `xterm` construction moved to `src/terminal.ts`, so both panes share one configuration.
+
+### Decisions, and what was rejected
+
+- **Quit is the app's own menu item.** The stock macOS Quit sends `terminate:`, and
+  tao 0.35.3 implements no `applicationShouldTerminate:`, so it ends the process without
+  asking, and nothing can refuse it.
+  - The replacement item keeps `CmdOrCtrl+Q` and calls the `quit` command. That command
+    refuses while a trust PTY lives, and emits `quit-refused` to the page.
+  - The page also handles Cmd+Q itself, because a key dispatched in the page (e2e's
+    `press("Cmd+Q")`) never reaches a menu accelerator. Both paths call the same
+    command.
+  - Window close (`CloseRequested`) and `ExitRequested` are refused the same way.
+  - **Rejected:** an item with no accelerator, so that the real key reaches the page and
+    e2e tests the path a user takes. If WKWebView doesn't deliver Cmd+Q to the page,
+    Cmd+Q would stop quitting at all, and a `--bg` job can't press a real key to find
+    out.
+  - **Rejected:** adding `applicationShouldTerminate:` to tao's delegate at runtime. It
+    would cover Dock → Quit too, but it patches another crate's class.
+- **Rust keeps the trust pane across a reload.** WKWebView's right-click menu offers
+  Reload in a release build.
+  - A page-only trust state would orphan a `claude` the app may never kill, with quit
+    refused for good.
+  - So `TrustInfo` (cwd, label, prompt, mode) lives with the PTY. On load the page asks
+    `trust_current`, and `trust_open` for the same `cwd` rebinds the output and exit
+    channels instead of spawning. Its sender keeps going when a send fails; an
+    attach's still stops.
+  - **Rejected:** Rust doing the retry itself, so it also survives a reload. That puts
+    the box's whole flow in two places.
+- **"+" anywhere, while a trust pane is open, shows that pane and spawns nothing.**
+  Item 16 says "a second '+' on an untrusted repo". The only repo the app knows is
+  untrusted is the pane's own, and finding out about another would take a `--bg`.
+  **Rejected:** "+" on other repos working as usual, which fails the stricter reading.
+- **The pane takes focus on every request** (the sidebar entry, "+", a refused quit),
+  not only when it becomes visible. `e2e-author`'s first run found "+" left focus on
+  the button, because Cmd+Q had already shown the pane.
+
+### Verified
+
+- `cargo test`: 37 passed, including the real trust error being classed as untrusted.
+- **Items 13–16** pass under `npm run e2e`, in `e2e/trust-pane.spec.ts` by
+  `e2e-author`. The whole suite has 58 passed, and the green is recorded.
+- **Breaks,** each applied, run and reverted by a scratch script. Each turned red
+  exactly the claims named:
+  - The trust `claude` given the prompt as an argument turned 13–16 red.
+  - The trust error shown as a plain failure, with no pane, turned 13–16 red.
+  - No retry on exit turned 14 and 15 red.
+  - A retry that drops the mode turned 14 red.
+  - A second `--bg` 1.5s after the retry turned 14 and 15 red.
+  - A second trust error that reopens the pane 2s later turned 14 and 15 red.
+  - The raw stderr instead of "Not trusted, nothing started" turned 15 red.
+  - Cmd+Q refused with no message turned 16 red.
+  - "+" opening the box while the pane is open turned 16 red.
+  - Focus only when the pane becomes visible turned 16 red.
+  - **The trust PTY closed as "unlisted" on a list change stayed green at first.** Item
+    16 showed every session before the pane opened, so the list never changed while it
+    was open, and the app only reacts to a changed list. In real use the list changes
+    all the time. `e2e-author` now lists the others after the pane opens, then changes
+    and removes one. The break turns 16 red on "pid alive".
+
+### Harness defects found on the way
+
+- **Perl never ran the trust fake's signal handlers.** Perl defers a handler to a safe
+  point between ops, and macOS restarts a `sysread` that a signal interrupted, so a
+  blocked read never reaches one. `trust.pl` reads through a 50ms `select` loop instead.
+  `tty.pl`'s attach loop has the same shape, but it logs no signals, so it was left.
+- **`press("/")` sent keyCode 47,** which xterm.js drops. `press()` now maps `/ . , -`
+  to their key codes.
+- **The reload test flaked, probably because of this slice.** `sidebar-order.spec.ts`'s
+  reload test timed out (30s) in 2 full runs out of 5. It always passed alone.
+  - To survive a reload, the PTY sender had been changed to keep sending after a failed
+    send, where it used to stop. The attach PTYs went back to stopping, and only the
+    trust PTY, which is rebound, keeps going.
+  - After that, 3 full runs out of 3 passed. That doesn't prove the cause (nothing
+    checked main), but it's the only change here that touches a reload's traffic.
+
+### Not verified
+
+- **Item 17** (by hand, release app) is open, for the same reason as item 12:
+  `drive-window` can't send Apple Events from a `claude --bg` job.
+  `/Applications/Oscillate.app` doesn't have slice 3 yet.
+- **The native Cmd+Q path.** e2e presses Cmd+Q in the page. The menu accelerator,
+  which a real key hits first, calls the same command, but it's unchecked. Item 17
+  can check it: press Cmd+Q while the trust pane is open.
+- **Dock → Quit and logout still end the app** while a trust pane is open, since
+  they send `terminate:`. The trust `claude` then gets the kernel's hangup.
+- **The reload rebind** has no spec. After a rebind, the pane stays blank until
+  `claude` repaints, and a trust exit during the reload itself loses the retry.
+
+---
+
 ## 2026-09-28 — Chapter 3, slice 2: a new session from the app
 
 ### What `claude --bg` prints (the PLAN's first "Still open")
@@ -110,12 +229,19 @@ sequences and takes the word after the first line's `·`. The fallback is the wo
   `command.split(" ")[0]` found no app, so the first `relaunch()` killed nothing, and
   the check passed for the wrong reason. The match compares the full binary path now.
 
-### Not verified
+### Not verified at merge; item 12 checked afterwards
 
-**Item 12** (by hand, release app) is open. Driving the window needs Apple Events,
-which a `claude --bg` job can't send. The release binary builds with the slice.
-`/Applications/Oscillate.app` was not reinstalled; it still has neither slice 1 nor
-slice 2.
+**Item 12** (by hand, release app) was open at the merge. Driving the window needs
+Apple Events, which a `claude --bg` job can't send.
+
+**Item 12 passed on 2026-09-28**, after the merge. `/Applications/Oscillate.app` was
+rebuilt from `df30efc` (slices 1 and 2) and reinstalled. The author clicked "+" on
+`~/Github Repos`, chose plan mode, and sent a throwaway prompt. The new row was
+selected and attached. `claude agents --json --all` (2.1.284) listed `1e30ab73` with
+`cwd` `/Users/khalilbrewington/Github Repos`, started at 20:19:33, and its one
+`claude attach 1e30ab73` was a child of the installed app. `claude rm` removed it.
+Plan mode was the author's choice in the box. The daemon's process args
+(`claude bg-spare …`) don't show the mode, so it wasn't checked separately.
 
 ---
 

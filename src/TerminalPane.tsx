@@ -1,11 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { Terminal } from "@xterm/xterm";
-import { FitAddon } from "@xterm/addon-fit";
-import { UnicodeGraphemesAddon } from "@xterm/addon-unicode-graphemes";
-import { WebLinksAddon } from "@xterm/addon-web-links";
-import { WebglAddon } from "@xterm/addon-webgl";
-import { openUrl } from "@tauri-apps/plugin-opener";
-import "@xterm/xterm/css/xterm.css";
+import type { Terminal } from "@xterm/xterm";
+import type { FitAddon } from "@xterm/addon-fit";
+import { createTerminal } from "./terminal";
 import { spawnPty, type Pty } from "./pty";
 
 /** Ack parsed output in batches; the Rust reader pauses at 1MB unacked. */
@@ -22,11 +18,6 @@ const RESET_INPUT_MODES =
   "\x1b[?1004l\x1b[?2004l\x1b[?1l\x1b>\x1b[=0;1u\x1b[?25l";
 
 export type PaneStatus = "attaching" | "live" | "detached" | "failed";
-
-/** Links open on Cmd+click, as in Ghostty and iTerm. */
-function openOnCmdClick(event: MouseEvent, uri: string) {
-  if (event.metaKey) void openUrl(uri);
-}
 
 interface Props {
   /** The session id `claude attach` takes. */
@@ -53,35 +44,7 @@ export function TerminalPane({ session, label, visible, attempt, onStatus, onRea
 
   // The terminal: one per pane, for the pane's whole life.
   useEffect(() => {
-    const t = new Terminal({
-      allowProposedApi: true, // unicode-graphemes
-      fontFamily: '"JetBrains Mono", ui-monospace, Menlo, monospace',
-      fontSize: 14,
-      cursorBlink: true,
-      scrollback: 10_000,
-      macOptionIsMeta: true,
-      macOptionClickForcesSelection: true,
-      // Claude's TUI switches to the kitty keyboard protocol when the terminal offers it,
-      // as Ghostty does. Without it a bare ESC is ambiguous and Esc-Esc doesn't clear.
-      vtExtensions: { kittyKeyboard: true },
-      linkHandler: { activate: openOnCmdClick }, // OSC 8
-      theme: { background: "#1e1e1e" },
-    });
-    const f = new FitAddon();
-    t.loadAddon(f);
-    // Grapheme clusters (👍🏽, 👨‍👩‍👧) take one glyph, as in Ghostty; unicode11 split them.
-    t.loadAddon(new UnicodeGraphemesAddon());
-    t.loadAddon(new WebLinksAddon(openOnCmdClick));
-
-    t.open(host.current!);
-    try {
-      const webgl = new WebglAddon();
-      webgl.onContextLoss(() => webgl.dispose()); // falls back to the DOM renderer
-      t.loadAddon(webgl);
-    } catch (e) {
-      console.warn("WebGL renderer unavailable, using DOM:", e);
-    }
-    f.fit();
+    const { term: t, fit: f } = createTerminal(host.current!);
     term.current = t;
     fit.current = f;
 

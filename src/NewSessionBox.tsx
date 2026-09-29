@@ -8,12 +8,30 @@ export const MODES = ["", "plan", "acceptEdits", "auto", "manual", "dontAsk"] as
 /** How long a started session may take to be listed before the box says so. */
 const LIST_WAIT_MS = 10_000;
 
+/** What the box says when the one retry after the trust pane is still untrusted. */
+export const NOT_TRUSTED = "Not trusted, nothing started";
+
+export type Mode = (typeof MODES)[number];
+
+/** Mirrors `StartError` in `src-tauri/src/newsession.rs`. */
+interface StartError {
+  untrusted: boolean;
+  message: string;
+}
+
 interface Props {
   cwd: string;
   label: string;
   sessions: Session[] | null;
+  /**
+   * The prompt and mode to open with. With `retry`, the box starts at once: that is the
+   * one retry after the trust pane exited, and a second trust error ends there.
+   */
+  initial?: { prompt: string; mode: Mode; retry: boolean; error?: string };
   /** Selects and attaches the new session, through the pane pool. */
   onStarted: (id: string) => void;
+  /** `--bg` said the folder isn't trusted: the app opens the trust pane with these. */
+  onUntrusted: (prompt: string, mode: Mode) => void;
   onClose: () => void;
 }
 
@@ -29,10 +47,12 @@ type Phase =
  * `cwd`. Once the new id is listed, it is selected and attached; a failure is shown
  * verbatim, and the prompt and mode stay for another try.
  */
-export function NewSessionBox({ cwd, label, sessions, onStarted, onClose }: Props) {
-  const [prompt, setPrompt] = useState("");
-  const [mode, setMode] = useState<(typeof MODES)[number]>("");
-  const [phase, setPhase] = useState<Phase>({ kind: "editing" });
+export function NewSessionBox({ cwd, label, sessions, initial, onStarted, onUntrusted, onClose }: Props) {
+  const [prompt, setPrompt] = useState(initial?.prompt ?? "");
+  const [mode, setMode] = useState<Mode>(initial?.mode ?? "");
+  const [phase, setPhase] = useState<Phase>(
+    initial?.error ? { kind: "failed", message: initial.error } : { kind: "editing" },
+  );
   const promptRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => promptRef.current?.focus(), []);
@@ -40,13 +60,26 @@ export function NewSessionBox({ cwd, label, sessions, onStarted, onClose }: Prop
   const busy = phase.kind === "starting" || phase.kind === "waiting";
   const canSubmit = !busy && prompt.trim() !== "";
 
-  const submit = () => {
+  const submit = (retry = false) => {
     if (!canSubmit) return;
     setPhase({ kind: "starting" });
     invoke<string>("start_session", { cwd, mode: mode || null, prompt })
       .then((id) => setPhase({ kind: "waiting", id }))
-      .catch((e) => setPhase({ kind: "failed", message: String(e) }));
+      .catch((e: StartError | string) => {
+        const err = typeof e === "string" ? { untrusted: false, message: e } : e;
+        if (err.untrusted && !retry) onUntrusted(prompt, mode);
+        else setPhase({ kind: "failed", message: err.untrusted ? NOT_TRUSTED : err.message });
+      });
   };
+
+  // The one retry after the trust pane. Deferred, so StrictMode's throwaway mount
+  // starts nothing.
+  useEffect(() => {
+    if (!initial?.retry) return;
+    const timer = setTimeout(() => submit(true), 0);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // The new session opens once it's listed; after LIST_WAIT_MS the box says so instead.
   const waitingFor = phase.kind === "waiting" ? phase.id : null;

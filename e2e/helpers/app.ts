@@ -113,7 +113,13 @@ const KEYS = {
   Escape: { key: "Escape", code: "Escape", keyCode: 27 },
   "Ctrl+Z": { key: "z", code: "KeyZ", keyCode: 90, ctrlKey: true },
   "Ctrl+C": { key: "c", code: "KeyC", keyCode: 67, ctrlKey: true },
+  // In the running app the menu's accelerator takes Cmd+Q before the page sees it; the
+  // page sends one it does see to the same quit command.
+  "Cmd+Q": { key: "q", code: "KeyQ", keyCode: 81, metaKey: true },
 } as const;
+
+/** Key codes a keydown carries for punctuation; xterm.js ignores the character code. */
+const PUNCTUATION: Record<string, number> = { "/": 191, ".": 190, ",": 188, "-": 189 };
 
 /**
  * Presses keys in the focused terminal pane: names from `KEYS`, or any other string,
@@ -125,7 +131,7 @@ export async function press(...keys: (keyof typeof KEYS | string)[]): Promise<vo
   const events = keys.flatMap((k) =>
     k in KEYS
       ? [KEYS[k as keyof typeof KEYS]]
-      : [...k].map((c) => ({ key: c, code: "", keyCode: c.toUpperCase().charCodeAt(0) })),
+      : [...k].map((c) => ({ key: c, code: "", keyCode: PUNCTUATION[c] ?? c.toUpperCase().charCodeAt(0) })),
   );
   const error = await browser.execute((evs) => {
     const target = document.activeElement;

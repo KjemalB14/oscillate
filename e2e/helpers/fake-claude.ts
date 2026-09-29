@@ -3,12 +3,20 @@
  * its `claude` children with a clean environment, so the fake's behavior lives in files
  * beside it (`out`, `log`) that the tests rewrite while the app is running.
  *
- * It answers four commands, and logs each:
+ * It answers five commands, and logs each:
  * - `agents --json --all` prints `out` (`poll`).
  * - `--bg ...` runs `bg.pl`: it logs its pid, start time, cwd and every argument
- *   byte-exact (`bg pid=<n> at=<ms> cwd=<dir> argv=<hex>,<hex>,...`), then answers what
- *   `answerBg` set: by default the stdout Claude Code 2.1.284 really printed
+ *   byte-exact (`bg pid=<n> at=<ms> cwd=<dir> argv=<hex>,<hex>,...`). In a directory
+ *   `untrust()` listed, it then fails as a real one does there: the stderr Claude Code
+ *   2.1.284 printed (`fixtures/bg-untrusted-stderr.txt`, with this cwd), exit 1.
+ *   Otherwise it answers what `answerBg` set: by default the stdout a real one printed
  *   (`fixtures/bg-stdout.txt`), exit 0.
+ * - `claude` with no arguments, the interactive trust prompt, runs `trust.pl`: it logs
+ *   `trust pid=<n> at=<ms> cwd=<dir> argv=` and shows a trust prompt. "1" or Enter
+ *   accepts: the cwd leaves the untrusted list, and it exits 0 on `/exit` + Enter. "2" or
+ *   Esc is "No, exit": it exits 1 and the cwd stays untrusted. Every signal that could end
+ *   or stop it (all but SIGWINCH, which a resize sends) is logged as `trust-signal`, and
+ *   the fatal ones then end it. Each exit is logged as `trust-exit`.
  * - `attach <id>` runs `tty.pl`: it logs its pid and cwd (`attach <id> pid=<n> cwd=<dir>`),
  *   turns on mouse and focus reports as Claude's TUI does, and logs every byte it reads
  *   (`keys <id> <pid> <hex>`). Ctrl+Z prints `[detached from <id>]`, logs `detach`, and
@@ -43,6 +51,8 @@ const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), "..", "fixtures")
 const DIR_VAR = "OSCILLATE_E2E_FAKE_DIR";
 /** The id in `fixtures/bg-stdout.txt`, the output of a real `claude --bg`. */
 const CAPTURED_BG_ID = "c59cf1b2";
+/** Where the captured untrusted stderr names its directory; `bg.pl` puts its cwd there. */
+const CWD_MARK = "@@CWD@@";
 /** The file `touch()` rewrites; `claudeDirTree()` leaves it out. */
 const TOUCHED = join("sessions", "4242.json");
 
@@ -93,6 +103,7 @@ d='${d}'
 case "$*" in
 "agents --json --all") echo poll >> "$d/log"; cat "$d/out"; exit 0 ;;
 "--bg "*) exec /usr/bin/perl "$d/bg.pl" "$@" ;;
+"") [ $# -eq 0 ] && exec /usr/bin/perl "$d/trust.pl" ;;
 "agents") exec /usr/bin/perl "$d/tty.pl" agents ;;
 "attach "*) exec /usr/bin/perl "$d/tty.pl" "$@" ;;
 esac
@@ -103,6 +114,12 @@ exit 2
     chmodSync(this.bin, 0o755);
     writeFileSync(join(this.dir, "tty.pl"), TTY_PL);
     writeFileSync(join(this.dir, "bg.pl"), BG_PL);
+    writeFileSync(join(this.dir, "trust.pl"), TRUST_PL);
+    // The captured error names the throwaway repo it came from; each answer names its own.
+    const untrustedErr = readFileSync(join(FIXTURES, "bg-untrusted-stderr.txt"), "utf8");
+    const capturedDir = untrustedErr.match(/ in (\S+) once /)![1];
+    writeFileSync(join(this.dir, "bg-untrusted-err"), untrustedErr.replace(capturedDir, CWD_MARK));
+    writeFileSync(join(this.dir, "untrusted"), "");
     mkdirSync(join(this.claudeDir, "sessions"), { recursive: true });
     mkdirSync(join(this.claudeDir, "jobs"), { recursive: true });
     writeFileSync(join(this.dir, "log"), "");
@@ -126,6 +143,63 @@ exit 2
     writeFileSync(join(this.dir, "bg-err"), opts.stderr ?? "");
     writeFileSync(join(this.dir, "bg-exit"), String(opts.exit ?? 0));
     writeFileSync(join(this.dir, "bg-delay"), String((opts.delayMs ?? 0) / 1000));
+  }
+
+  /**
+   * Marks `dir` untrusted: `--bg` there fails with the real trust error until the fake
+   * trust prompt is accepted in it. Every directory is trusted by default. The list
+   * outlives a spec: a spec that untrusts a directory must `trust()` it before it ends.
+   */
+  untrust(dir: string) {
+    const real = realpathSync(dir);
+    if (!this.untrusted().includes(real)) appendFileSync(join(this.dir, "untrusted"), `${real}\n`);
+  }
+
+  /** Takes `dir` off the untrusted list, as accepting the trust prompt does. */
+  trust(dir: string) {
+    const real = realpathSync(dir);
+    const rest = this.untrusted().filter((d) => d !== real);
+    writeFileSync(join(this.dir, "untrusted"), rest.map((d) => `${d}\n`).join(""));
+  }
+
+  /** The directories `--bg` currently fails in, resolved. */
+  untrusted(): string[] {
+    return readFileSync(join(this.dir, "untrusted"), "utf8").split("\n").filter(Boolean);
+  }
+
+  /**
+   * Every interactive trust `claude` the app started, oldest first: its pid, start time,
+   * cwd, and argv after `claude` (empty when it's run with no arguments, as it should be).
+   */
+  trusts(): { pid: number; at: number; cwd: string; argv: string[] }[] {
+    return this.log()
+      .map((l) => l.match(/^trust pid=(\d+) at=(\d+) cwd=(.*) argv=([0-9a-f,]*)$/))
+      .filter((m): m is RegExpMatchArray => !!m)
+      .map((m) => ({
+        pid: Number(m[1]),
+        at: Number(m[2]),
+        cwd: m[3],
+        argv: m[4] ? m[4].split(",").map((h) => Buffer.from(h, "hex").toString("utf8")) : [],
+      }));
+  }
+
+  /** Every signal a trust `claude` received (optionally one pid's), oldest first. */
+  trustSignals(pid?: number): { pid: number; sig: string }[] {
+    return this.log()
+      .map((l) => l.match(/^trust-signal pid=(\d+) sig=(\w+)$/))
+      .filter((m): m is RegExpMatchArray => !!m && (pid === undefined || m[1] === String(pid)))
+      .map((m) => ({ pid: Number(m[1]), sig: m[2] }));
+  }
+
+  /**
+   * How each trust `claude` ended: `accepted` (trust accepted, then `/exit`), `declined`
+   * ("No, exit"), `signal-<NAME>`, or `eof` (its terminal closed).
+   */
+  trustExits(): { pid: number; how: string }[] {
+    return this.log()
+      .map((l) => l.match(/^trust-exit pid=(\d+) how=(\S+)$/))
+      .filter((m): m is RegExpMatchArray => !!m)
+      .map((m) => ({ pid: Number(m[1]), how: m[2] }));
   }
 
   /** Every `claude --bg` the app ran, oldest first: argv after `claude`, byte-exact. */
@@ -238,22 +312,26 @@ exit 2
   }
 
   /**
-   * The fake's processes alive right now, from `ps`: `attach` pids by session id, and
-   * agent-view pids. Zombies don't count.
+   * The fake's processes alive right now, from `ps`: `attach` pids by session id,
+   * agent-view pids, and trust `claude` pids. Zombies don't count.
    */
-  running(): { attach: Map<string, number[]>; agentView: number[] } {
+  running(): { attach: Map<string, number[]>; agentView: number[]; trust: number[] } {
     const out = execFileSync("ps", ["-axo", "pid=,stat=,command="], { encoding: "utf8" });
     const attach = new Map<string, number[]>();
     const agentView: number[] = [];
+    const trust: number[] = [];
     const tty = join(this.dir, "tty.pl");
+    const trustPl = join(this.dir, "trust.pl");
     for (const line of out.split("\n")) {
       const m = line.trim().match(/^(\d+)\s+(\S+)\s+(.*)$/);
-      if (!m || m[2].startsWith("Z") || !m[3].includes(tty)) continue;
+      if (!m || m[2].startsWith("Z")) continue;
+      if (m[3].endsWith(trustPl)) trust.push(Number(m[1]));
+      if (!m[3].includes(tty)) continue;
       const args = m[3].slice(m[3].indexOf(tty) + tty.length).trim().split(" ");
       if (args[0] === "attach") attach.set(args[1], [...(attach.get(args[1]) ?? []), Number(m[1])]);
       else if (args[0] === "agents") agentView.push(Number(m[1]));
     }
-    return { attach, agentView };
+    return { attach, agentView, trust };
   }
 
   /** How many times the app has run `claude agents --json --all` since launch. */
@@ -333,6 +411,13 @@ sub slurp { open my $f, "<", "$d/$_[0]" or return ""; local $/; my $s = <$f>; cl
 open my $l, ">>", "$d/log" or die;
 print $l "bg pid=$$ at=$at cwd=" . getcwd() . " argv=" . join(",", map { unpack("H*", $_) } @ARGV) . "\n";
 close $l;
+my $cwd = getcwd();
+if (grep { $_ eq $cwd } split /\n/, slurp("untrusted")) {
+    (my $err = slurp("bg-untrusted-err")) =~ s/\@\@CWD\@\@/$cwd/;
+    binmode STDERR;
+    print STDERR $err;
+    exit 1;
+}
 my $delay = slurp("bg-delay");
 sleep($delay) if $delay > 0;
 binmode STDOUT;
@@ -340,4 +425,70 @@ binmode STDERR;
 print STDOUT slurp("bg-out");
 print STDERR slurp("bg-err");
 exit(slurp("bg-exit") + 0);
+`;
+
+/**
+ * The fake interactive `claude`, sitting at the workspace-trust prompt. It exists to be
+ * answered, never signalled: every signal that could end or stop it is logged first
+ * (SIGWINCH, which a resize sends, is not), and the fatal ones then end it as they would
+ * end the real one.
+ */
+const TRUST_PL = String.raw`use strict;
+use warnings;
+use Cwd qw(getcwd);
+use IO::Handle;
+use Time::HiRes qw(time);
+my ($d) = $0 =~ m{^(.*)/[^/]*$};
+sub say_log { open my $l, ">>", "$d/log" or die; print $l "@_\n"; close $l }
+STDOUT->autoflush(1);
+my $cwd = getcwd();
+say_log("trust pid=$$ at=" . int(time() * 1000) . " cwd=$cwd argv=" . join(",", map { unpack("H*", $_) } @ARGV));
+my %fatal = map { $_ => 1 } qw(HUP INT QUIT TERM PIPE ALRM USR1 USR2);
+for my $sig (qw(HUP INT QUIT TERM PIPE ALRM USR1 USR2 TSTP TTIN TTOU CONT)) {
+    $SIG{$sig} = sub {
+        say_log("trust-signal pid=$$ sig=$sig");
+        return unless $fatal{$sig};
+        say_log("trust-exit pid=$$ how=signal-$sig");
+        $SIG{$sig} = "DEFAULT";
+        kill $sig, $$;
+    };
+}
+sub untrusted { open my $f, "<", "$d/untrusted" or return (); my @l = grep { length } map { chomp; $_ } <$f>; close $f; @l }
+system("stty raw -echo");
+print "\e[2J\e[H fake claude\r\n\r\n Do you trust the files in this folder?\r\n\r\n $cwd\r\n\r\n";
+print " > 1. Yes, proceed\r\n   2. No, exit\r\n\r\n Enter to confirm, Esc to exit\r\n";
+my ($accepted, $typed) = (0, "");
+# Perl runs signal handlers between ops, and macOS restarts a blocked read, so the read
+# waits in a select with a timeout: a handler runs within 50ms of its signal.
+while (1) {
+    my $in = "";
+    vec($in, fileno(STDIN), 1) = 1;
+    next unless select(my $ready = $in, undef, undef, 0.05) > 0;
+    sysread(STDIN, my $buf, 4096) or last;
+    say_log("trust-keys pid=$$ " . unpack("H*", $buf));
+    if (!$accepted) {
+        if ($buf =~ /^[1\r]/) {
+            $accepted = 1;
+            my @rest = grep { $_ ne $cwd } untrusted();
+            open my $f, ">", "$d/untrusted" or die;
+            print $f map { "$_\n" } @rest;
+            close $f;
+            say_log("trust-accept pid=$$ cwd=$cwd");
+            print "\r\n Trusted. Type /exit to leave.\r\n> ";
+        } elsif ($buf =~ /^(2|\e)/) {
+            say_log("trust-decline pid=$$ cwd=$cwd");
+            say_log("trust-exit pid=$$ how=declined");
+            exit 1;
+        }
+        next;
+    }
+    print $buf;
+    $typed .= $buf;
+    if ($typed =~ m{/exit\r}) {
+        say_log("trust-exit pid=$$ how=accepted");
+        exit 0;
+    }
+}
+say_log("trust-exit pid=$$ how=eof");
+exit 0;
 `;

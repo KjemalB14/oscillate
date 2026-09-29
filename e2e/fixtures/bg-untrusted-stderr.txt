@@ -1,0 +1,1 @@
+Workspace not trusted. Run `claude` in /private/var/folders/35/5yd1pthn06nczswr8_01fn_h0000gn/T/tmp.ZIZObQvfnu once and accept the trust prompt, then retry.

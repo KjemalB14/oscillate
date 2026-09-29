@@ -6,6 +6,11 @@
 //! pipe, then hint lines such as `claude attach <id>`. The bytes Claude Code 2.1.284
 //! printed are in `fixtures/bg/` (PLAN-new-sessions.md, *Still open*; NOTES.md,
 //! *Chapter 3, slice 2*).
+//!
+//! In a folder that isn't trusted yet, `--bg` starts nothing: it exits 1 with empty
+//! stdout and one line on stderr, `Workspace not trusted. Run \`claude\` in <dir> once
+//! and accept the trust prompt, then retry.` (`fixtures/bg/untrusted-2.1.284.txt`). That
+//! error is the only trust signal the app reads; it never looks at the trust flag.
 
 use std::io::Read;
 use std::path::Path;
@@ -13,7 +18,32 @@ use std::process::{Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 
+use serde::Serialize;
+
 use crate::claude::{child_env, Resolver};
+
+/// What `--bg` says when the folder isn't trusted; the start of its stderr.
+const UNTRUSTED: &str = "Workspace not trusted";
+
+/// Why a start failed: the text to show verbatim, and whether it was the trust error,
+/// which opens the trust pane instead.
+#[derive(Debug, PartialEq, Serialize)]
+pub struct StartError {
+    pub untrusted: bool,
+    pub message: String,
+}
+
+impl From<String> for StartError {
+    fn from(message: String) -> Self {
+        StartError { untrusted: false, message }
+    }
+}
+
+impl From<&str> for StartError {
+    fn from(message: &str) -> Self {
+        message.to_string().into()
+    }
+}
 
 /// The modes the box offers; `None` is Default, which passes no flag.
 /// `bypassPermissions` is left out on purpose (PLAN-new-sessions.md).
@@ -79,10 +109,10 @@ fn strip_ansi(s: &str) -> String {
 
 /// Runs `--bg` and returns the new session's id, or the text to show verbatim: stderr,
 /// then stdout.
-pub fn start(resolver: &Resolver, cwd: &str, mode: Option<&str>, prompt: &str) -> Result<String, String> {
+pub fn start(resolver: &Resolver, cwd: &str, mode: Option<&str>, prompt: &str) -> Result<String, StartError> {
     let args = bg_args(mode, prompt)?;
     if !Path::new(cwd).is_dir() {
-        return Err(format!("{cwd} no longer exists."));
+        return Err(format!("{cwd} no longer exists.").into());
     }
     let claude = resolver.get()?;
     let mut child = Command::new(&claude.path)
@@ -111,13 +141,14 @@ pub fn start(resolver: &Resolver, cwd: &str, mode: Option<&str>, prompt: &str) -
             None if Instant::now() >= deadline => {
                 let _ = child.kill();
                 let _ = child.wait();
-                return Err(format!("`claude --bg` didn't answer in {}s.", TIMEOUT.as_secs()));
+                return Err(format!("`claude --bg` didn't answer in {}s.", TIMEOUT.as_secs()).into());
             }
             None => thread::sleep(Duration::from_millis(20)),
         }
     };
     let (stdout, stderr) = (stdout.join().unwrap(), stderr.join().unwrap());
     if !status.success() {
+        let untrusted = stderr.trim_start().starts_with(UNTRUSTED);
         let mut shown = if stderr.trim().is_empty() { String::new() } else { stderr };
         if !stdout.trim().is_empty() {
             if !shown.is_empty() && !shown.ends_with('\n') {
@@ -125,9 +156,10 @@ pub fn start(resolver: &Resolver, cwd: &str, mode: Option<&str>, prompt: &str) -
             }
             shown.push_str(&stdout);
         }
-        return Err(if shown.is_empty() { format!("`claude --bg` {status}") } else { shown });
+        let message = if shown.is_empty() { format!("`claude --bg` {status}") } else { shown };
+        return Err(StartError { untrusted, message });
     }
-    parse_id(&stdout).ok_or_else(|| format!("`claude --bg` printed no session id:\n{stdout}{stderr}"))
+    parse_id(&stdout).ok_or_else(|| format!("`claude --bg` printed no session id:\n{stdout}{stderr}").into())
 }
 
 #[cfg(test)]
@@ -199,6 +231,19 @@ mod tests {
         let (_dir, resolver) = fake("echo out; echo 'Workspace not trusted' >&2; exit 3");
         let repo = tempfile::tempdir().unwrap();
         let err = start(&resolver, repo.path().to_str().unwrap(), None, "p").unwrap_err();
-        assert_eq!(err, "Workspace not trusted\nout\n");
+        assert_eq!(err.message, "Workspace not trusted\nout\n");
+        let (_dir, resolver) = fake("echo 'no such mode' >&2; exit 2");
+        let err = start(&resolver, repo.path().to_str().unwrap(), None, "p").unwrap_err();
+        assert_eq!(err, StartError { untrusted: false, message: "no such mode\n".into() });
+    }
+
+    #[test]
+    fn the_real_trust_error_is_told_apart() {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/bg/untrusted-2.1.284.txt");
+        let (_dir, resolver) = fake(&format!("cat '{}' >&2; exit 1", path.display()));
+        let repo = tempfile::tempdir().unwrap();
+        let err = start(&resolver, repo.path().to_str().unwrap(), Some("plan"), "p").unwrap_err();
+        assert!(err.untrusted);
+        assert_eq!(err.message, std::fs::read_to_string(path).unwrap());
     }
 }
