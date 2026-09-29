@@ -188,7 +188,7 @@ describe("the trust pane (items 13-16)", () => {
     this.timeout(120_000);
     const repo = "tprepo16";
     const others = Array.from({ length: 8 }, (_, i) => attachable(`tpo16x${i}`, { repo: "tprepo16other" }));
-    await startUntrusted(repo, "prompt sixteen", "acceptEdits", others);
+    await startUntrusted(repo, "prompt sixteen", "acceptEdits");
     const pid = trustsIn(repo)[0].pid;
     const bgsBefore = fake.bgs().length;
     const trustsBefore = fake.trusts().length;
@@ -198,6 +198,12 @@ describe("the trust pane (items 13-16)", () => {
       expect(fake.trustSignals(pid)).toEqual([]);
       expect(fake.trustExits().filter((e) => e.pid === pid)).toEqual([]);
     };
+    check();
+
+    // The 7 others appear while the trust pane is open: the list changes under it.
+    await show([attachable(`${repo}0`, { repo }), ...others]);
+    await row("tpo16x7").waitForExist({ timeout: 5000 });
+    await browser.pause(1500);
     check();
 
     // 7 other sessions, past the LRU cap of 6.
@@ -218,6 +224,13 @@ describe("the trust pane (items 13-16)", () => {
     await browser.pause(500);
     await press("Ctrl+Z");
     await browser.pause(1500);
+    check();
+
+    // The list changes again: one session changes state, one is removed.
+    const changed = { ...(others[0] as object), state: "needs you", status: "waiting" };
+    await show([attachable(`${repo}0`, { repo }), changed, ...others.slice(1, 7)]);
+    await browser.waitUntil(async () => !(await row("tpo16x7").isExisting()), { timeout: 5000, timeoutMsg: "removed session still listed" });
+    await browser.pause(2000);
     check();
 
     // Cmd+Q is refused.
