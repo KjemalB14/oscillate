@@ -110,12 +110,19 @@ sequences and takes the word after the first line's `·`. The fallback is the wo
   `command.split(" ")[0]` found no app, so the first `relaunch()` killed nothing, and
   the check passed for the wrong reason. The match compares the full binary path now.
 
-### Not verified
+### Not verified at merge; item 12 checked afterwards
 
-**Item 12** (by hand, release app) is open. Driving the window needs Apple Events,
-which a `claude --bg` job can't send. The release binary builds with the slice.
-`/Applications/Oscillate.app` was not reinstalled; it still has neither slice 1 nor
-slice 2.
+**Item 12** (by hand, release app) was open at the merge. Driving the window needs
+Apple Events, which a `claude --bg` job can't send.
+
+**Item 12 passed on 2026-09-28**, after the merge. `/Applications/Oscillate.app` was
+rebuilt from `df30efc` (slices 1 and 2) and reinstalled. The author clicked "+" on
+`~/Github Repos`, chose plan mode, and sent a throwaway prompt. The new row was
+selected and attached. `claude agents --json --all` (2.1.284) listed `1e30ab73` with
+`cwd` `/Users/khalilbrewington/Github Repos`, started at 20:19:33, and its one
+`claude attach 1e30ab73` was a child of the installed app. `claude rm` removed it.
+Plan mode was the author's choice in the box. The daemon's process args
+(`claude bg-spare …`) don't show the mode, so it wasn't checked separately.
 
 ---
 

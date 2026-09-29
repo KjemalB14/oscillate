@@ -143,9 +143,9 @@ only item 4 red, and the other breaks cascade through all four (`NOTES.md`,
 
 Slice 2 shipped 2026-09-28. Items 5–11 pass under `npm run e2e`
 (`e2e/new-session.spec.ts`, `e2e/add-repo.spec.ts`, `e2e/repos-claude-dir.spec.ts`, by
-`e2e-author`), and each claim was proved red by a break. **Item 12 is not yet checked:**
-it needs the release app driven by hand, which a `claude --bg` job can't do. Its
-"nothing is attached" clause is held by two layers: the box never selects an unlisted
+`e2e-author`), and each claim was proved red by a break. **Item 12 passed by hand**
+in the reinstalled release app on 2026-09-28 (`NOTES.md`, *Chapter 3, slice 2*). Item
+8's "nothing is attached" clause is held by two layers: the box never selects an unlisted
 id, and `pty_spawn` refuses one. So a break proves it red only with both layers broken
 (`NOTES.md`, *Chapter 3, slice 2*). Slices 3–4 aren't started.
 
