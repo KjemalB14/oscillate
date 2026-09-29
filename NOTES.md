@@ -113,6 +113,19 @@ The app treats stderr that starts with `Workspace not trusted` as the trust erro
   - After that, 3 full runs out of 3 passed. That doesn't prove the cause (nothing
     checked main), but it's the only change here that touches a reload's traffic.
 
+- **The first trust-error test made `cargo test` flaky.** It ran a fake `--bg` that
+  `cat`ted the fixture to stderr. With it, full runs failed 3 times out of 8, always in
+  a timing test (`a_failed_poll_waits_the_retry_interval`, then two `watch` tests once
+  the spawning tests shared `serial()`). The commit before the slice had 9 out of 9
+  green, and so did this tree with that one test skipped (5 out of 5).
+  - The mechanism wasn't pinned down. The likeliest one is a script written while
+    another thread forks, which then fails to exec (`ETXTBSY`).
+  - The test now checks `is_untrusted` against the real bytes with no process, and the
+    existing failure test checks the flag through a real spawn. That gave 6 out of 6
+    green.
+  - **This was caught after the merge.** The merge command didn't stop on the failed
+    `cargo test`, so the fix went in on its own branch.
+
 ### Not verified
 
 - **Item 17** (by hand, release app) is open, for the same reason as item 12:
