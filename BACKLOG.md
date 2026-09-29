@@ -72,10 +72,10 @@ Decided 2026-09-28. The decisions, rejections and acceptance criteria are in
 - [ ] **Composer box in the thread view** for plain replies. Anything that opens a
   dialog still brings the terminal forward.
 - [ ] **Keyboard switching.** Cmd+1–9, Cmd+N, Cmd+[ / ].
-- [ ] **Show the retry after the trust pane closes.** For the second or so between the
-  trust `claude`'s exit and the new session's attach, the app shows nothing, so a user
-  repeats `/exit` into the new session and detaches it (`NOTES.md`, *Chapter 3, slice
-  3*, item 17). A "Starting…" state in the pane's place would say it's working.
+- [ ] **Say that `/exit` was taken in the trust pane.** In item 17 the author saw nothing
+  change after `/exit` and typed it again. The repeat landed in the new session and
+  detached it (`NOTES.md`, *Chapter 3, slice 3*). Time the gap first; then consider
+  showing "Starting…" once the trust `claude` exits.
 - [ ] **Move `@xterm/*` from the 6.1.0 betas to 6.1.0 stable** once it ships. The
   betas are pinned exactly for the kitty keyboard protocol (`NOTES.md`, chapter 1
   slice 2).
