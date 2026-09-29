@@ -9,6 +9,116 @@ Newest entries at the top.
 
 ---
 
+## 2026-09-28 — Chapter 3, slice 2: a new session from the app
+
+### What `claude --bg` prints (the PLAN's first "Still open")
+
+One throwaway session was run and then removed: `claude --bg --permission-mode plan
+"Reply with the single word ok…"` in this repo, with stdin closed, as the app runs it
+(Claude Code 2.1.284). It exited 0 with empty stderr. Stdout:
+
+```
+backgrounded · ESC[36mc59cf1b2ESC[39m
+ESC[2m  claude agents             list sessions ESC[22m
+ESC[2m  claude attach c59cf1b2    open in this terminal ESC[22m
+…logs, stop
+```
+
+It's **colored even into a pipe.** `agents --json` listed `c59cf1b2` with this `cwd`
+at once, and `claude rm` removed it. The bytes are pinned twice: in
+`src-tauri/fixtures/bg/2.1.284.txt` for the parse test, and in
+`e2e/fixtures/bg-stdout.txt`, which is the fake's default answer. The parse strips CSI
+sequences and takes the word after the first line's `·`. The fallback is the word after
+`claude attach`. Either must be letters and digits, as `pty_spawn` requires.
+
+### What was built
+
+- `newsession.rs` runs `--bg [--permission-mode <m>] <prompt>` as argv in the group's
+  `cwd`, through the resolver, with `child_env`, stdin null and a 30s hang guard.
+  `bypassPermissions` is refused in Rust as well as missing from the UI. A non-zero
+  exit returns stderr then stdout, verbatim. On success, a clone of the watch's trigger
+  `Sender` (`SessionModel.poll_now`) forces a poll.
+- `repos.rs` keeps `repos.json` in the app data dir (`OSCILLATE_DATA_DIR` in e2e),
+  canonicalized and written by temp file plus rename. The folder picker is
+  `tauri-plugin-dialog`, called from Rust only, so there's no JS permission.
+- `NewSessionBox.tsx` waits for the id in the session list, then selects it through
+  the pool (`select`). After 10s it names the id instead. Start is disabled while a
+  start is in flight, so a double click can't spawn two.
+- `groups.ts` seeds the grouping map with added repos, so an added repo and its
+  sessions' `cwd` are one key.
+
+### Decisions, and what was rejected
+
+- **The mode picker is radios, not a `<select>`.** Under the embedded WebDriver,
+  neither `selectByVisibleText`, `selectByIndex`, nor a click on an `<option>` changes a
+  select's value. Rejected: a harness helper that sets the value and dispatches
+  `change`. The spec would then test a synthetic path that no user takes. Radios are one
+  click for the user too.
+- **The folder picker's test hook is a file read by Rust, compiled in only with the
+  `e2e` feature** (`OSCILLATE_E2E_PICK`). Rejected: a `window.__pick` hook in the
+  frontend, which would ship in release JS; and mocking the dialog plugin's IPC, which is
+  more of the plugin's internals than the hook needs.
+- **`relaunch()` is harness code, not a service feature.** The service launches the app
+  once, and restarts it only between spec files, when it's dead. The helper sends
+  SIGTERM, respawns the binary with the same env plus `TAURI_WEBDRIVER_PORT` and
+  `WDIO_EMBEDDED_SERVER`, waits for `/status`, then calls `browser.reloadSession()`.
+  `onComplete` kills any app it left behind.
+- **A whitespace-only prompt counts as empty** (both in the UI and in Rust). The
+  prompt that is sent is never trimmed.
+- **Session `cwd`s aren't canonicalized; added repos are.** Real `agents --json`
+  reported the canonical path, so they merge. A session started through a symlinked path
+  would show as a second group. That is unproven either way.
+- **A failed "Add repo…"** (a picked path that is gone) only logs to the console. The
+  native picker only returns folders.
+
+### Verified
+
+- `cargo test`: 36 passed, including the parse test against the real bytes, byte-exact
+  argv, `cwd` and the failure text, and `repos.json` dedupe through a symlink.
+- **Items 5–11** pass under `npm run e2e`. The whole suite has 54 passed.
+  `e2e/new-session.spec.ts` (5–8), `e2e/add-repo.spec.ts` (9–10) and
+  `e2e/repos-claude-dir.spec.ts` (11) are by `e2e-author`, dispatched from this session.
+- **Breaks,** each applied, run and reverted by a scratch script. Each turned red
+  exactly the claims named:
+  - An extra `bypassPermissions` mode turned item 5 red.
+  - Newlines replaced in the prompt turned 6's byte-exact claim red.
+  - A flag under Default turned 6's argv claims red.
+  - Start enabled when the prompt is empty turned 6's empty-prompt claim red.
+  - No select after listing turned item 7 red.
+  - Stderr dropped, and the prompt cleared on failure, each turned 8's failure claim
+    red.
+  - No canonicalize turned 9's two symlink claims red.
+  - No save turned 8 of 9–10's claims red.
+  - A session group split from its added repo turned 9's "already has sessions" claim
+    red, and 10's "group stays".
+  - "Remove from list" on every group turned 10's "no such item" claim red.
+  - A remove that isn't saved turned 10's `repos.json` claim red.
+  - `repos.json` written into the Claude dir turned item 11 red.
+- **The unlisted-id clause of item 8 needed a spec fix.** The spec checked
+  `attaches(id) === 0` at the instant the message appeared. A break that attached at
+  that same moment stayed green, because the fake's attach takes a few hundred ms to
+  log. `e2e-author` changed it to hold for 3s. It now goes red, but only when the box
+  *and* `pty_spawn` are both broken: `pty_spawn` refuses an id that the last poll
+  didn't list, so a frontend-only break can't attach.
+
+### Harness defects found on the way
+
+- **The brief dropped failed hooks.** A failing `afterEach` makes mocha skip the rest
+  of its suite without reporting those tests, so a break showed "1 passed, 1 failed"
+  out of 10. `brief-reporter.ts` now records a failed hook as a failure.
+- **The repo path has a space** (`Github Repos`). A `ps` match on
+  `command.split(" ")[0]` found no app, so the first `relaunch()` killed nothing, and
+  the check passed for the wrong reason. The match compares the full binary path now.
+
+### Not verified
+
+**Item 12** (by hand, release app) is open. Driving the window needs Apple Events,
+which a `claude --bg` job can't send. The release binary builds with the slice.
+`/Applications/Oscillate.app` was not reinstalled; it still has neither slice 1 nor
+slice 2.
+
+---
+
 ## 2026-09-28 — Chapter 3, slice 1: rows stay still
 
 Chapter 3 was decided first. `PLAN-new-sessions.md` holds its head: the choices, what

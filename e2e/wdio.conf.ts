@@ -6,6 +6,7 @@
  */
 import { join } from "node:path";
 import BriefReporter from "./helpers/brief-reporter.js";
+import { appPids } from "./helpers/app.js";
 import { FakeClaude } from "./helpers/fake-claude.js";
 import { ROOT, RESULTS, resetResults, summarize } from "./helpers/results.js";
 
@@ -22,7 +23,7 @@ export const config: WebdriverIO.Config = {
       {
         driverProvider: "embedded",
         appBinaryPath: join(ROOT, "src-tauri", "target", "e2e", "debug", "oscillate"),
-        env: { OSCILLATE_CLAUDE_BIN: fake.bin, OSCILLATE_CLAUDE_DIR: fake.claudeDir },
+        env: fake.appEnv(),
       },
     ],
   ],
@@ -39,5 +40,7 @@ export const config: WebdriverIO.Config = {
 
   onComplete() {
     process.exitCode = summarize(fake.log());
+    // An app started by `relaunch()` isn't the service's to stop.
+    for (const pid of appPids()) process.kill(pid, "SIGTERM");
   },
 };

@@ -121,9 +121,11 @@ Plus how the chapter is sliced.
 
 ## Still open
 
-- **`claude --bg`'s exact stdout.** The help says it "prints the id". Slice 2 captures
-  the real output from one throwaway `--permission-mode plan` session and pins the fake
-  `claude` to it.
+- ~~**`claude --bg`'s exact stdout.**~~ Settled in slice 2: `backgrounded · <id>`,
+  colored even into a pipe, then four dim hint lines, with empty stderr and exit 0
+  (Claude Code 2.1.284). The bytes are in `src-tauri/fixtures/bg/` and
+  `e2e/fixtures/bg-stdout.txt`, and the fake answers with them (`NOTES.md`,
+  *Chapter 3, slice 2*).
 - **The real `rm` refusal text.** It's shown verbatim, so only its exit code matters to
   the code. Slice 4 captures one against a real session with an unpushed worktree
   commit, if one can be made cheaply. Otherwise the refusal is covered by the fake only,
@@ -137,7 +139,15 @@ Plus how the chapter is sliced.
 **Status:** slice 1 shipped 2026-09-28. Items 1–4 pass under `npm run e2e`
 (`e2e/sidebar-order.spec.ts`, by `e2e-author`). A snapshot without sort keys turns
 only item 4 red, and the other breaks cascade through all four (`NOTES.md`,
-*Chapter 3, slice 1*). Slices 2–4 aren't started.
+*Chapter 3, slice 1*).
+
+Slice 2 shipped 2026-09-28. Items 5–11 pass under `npm run e2e`
+(`e2e/new-session.spec.ts`, `e2e/add-repo.spec.ts`, `e2e/repos-claude-dir.spec.ts`, by
+`e2e-author`), and each claim was proved red by a break. **Item 12 is not yet checked:**
+it needs the release app driven by hand, which a `claude --bg` job can't do. Its
+"nothing is attached" clause is held by two layers: the box never selects an unlisted
+id, and `pty_spawn` refuses one. So a break proves it red only with both layers broken
+(`NOTES.md`, *Chapter 3, slice 2*). Slices 3–4 aren't started.
 
 Every item is checked by `npm run e2e` against the fake `claude`, unless it says it's
 checked by hand. The specs come from `e2e-author`, and each is proved red by a break.

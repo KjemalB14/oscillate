@@ -2,9 +2,11 @@
  * `npm run e2e:check`: the harness's own smoke test, not a criterion spec. It proves the
  * app launches under WebDriver, reads the fake `claude` (never the real one), and polls
  * again on a touch in the temp watched directory. Then that the fake `attach` logs its cwd
- * and its keys, and that `fake.running()` sees it.
+ * and its keys, and that `fake.running()` sees it. Then chapter 3's pieces: the fake
+ * `--bg`, the folder-picker hook, and `relaunch()`.
  */
-import { attachable, fake, nextPoll, press, show } from "./helpers/app.js";
+import { execFileSync } from "node:child_process";
+import { appPids, attachable, fake, nextPoll, press, relaunch, show } from "./helpers/app.js";
 
 describe("harness", () => {
   it("launches the app with a Sessions sidebar", async () => {
@@ -45,5 +47,47 @@ describe("harness: the fake attach", () => {
     await browser.waitUntil(() => !fake.running().attach.has("hcheck1"), { timeoutMsg: "still running" });
     expect(fake.log()).toContain(`detach hcheck1 pid=${attach.pid}`);
     await show("all-states");
+  });
+});
+
+describe("harness: the fake --bg", () => {
+  it("answers the captured stdout and logs argv byte-exact, with its cwd", () => {
+    const cwd = fake.repo("hcheck-bg");
+    const prompt = `a 'q' "dq" $HOME \`tick\`\nline two`;
+    fake.answerBg({ id: "hbg1" });
+    const out = execFileSync(fake.bin, ["--bg", "--permission-mode", "plan", prompt], { cwd, encoding: "utf8" });
+    expect(out).toContain("backgrounded · \x1b[36mhbg1\x1b[39m");
+    expect(fake.bgs().at(-1)).toMatchObject({ cwd, argv: ["--bg", "--permission-mode", "plan", prompt] });
+
+    fake.answerBg({ stderr: "boom\n", exit: 3 });
+    let status = 0;
+    try {
+      execFileSync(fake.bin, ["--bg", "x"], { cwd, stdio: "pipe" });
+    } catch (e) {
+      status = (e as { status: number }).status;
+    }
+    expect(status).toBe(3);
+    fake.answerBg({});
+  });
+});
+
+describe("harness: the picker hook and relaunch()", () => {
+  it("answers Add repo…, and relaunch() starts a new app that reads repos.json", async () => {
+    const dir = fake.repo("hcheck-added");
+    fake.pick(dir);
+    await $("button*=Add repo").click();
+    await expect($('section[aria-label="hcheck-added"]')).toBeExisting();
+    expect(fake.reposJson()).toContain(dir);
+
+    const before = appPids();
+    await relaunch();
+    expect(appPids()).toHaveLength(1);
+    expect(appPids()[0]).not.toBe(before[0]);
+    await expect($('section[aria-label="hcheck-added"]')).toBeExisting();
+
+    await $('section[aria-label="hcheck-added"]').$('button[aria-label="Remove from list"]').click();
+    await expect($('section[aria-label="hcheck-added"]')).not.toBeExisting();
+    expect(fake.reposJson()).toEqual([]);
+    fake.pick(null);
   });
 });

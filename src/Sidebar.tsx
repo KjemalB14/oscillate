@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { groupSessions } from "./groups";
+import { groupSessions, type RepoGroup } from "./groups";
 import type { Session, UiState } from "./sessions";
 
 /** The words for each state: the dot's accessible name and its tooltip. */
@@ -52,9 +52,23 @@ interface SidebarProps {
   /** The id of the session whose pane is showing. */
   selected: string | null;
   onSelect: (id: string) => void;
+  /** Canonical paths added with "Add repo…"; each keeps a group with no sessions. */
+  added: string[];
+  onAddRepo: () => void;
+  onRemoveRepo: (path: string) => void;
+  /** "+": opens the prompt box for a new session in the group's `cwd`. */
+  onNewSession: (group: RepoGroup) => void;
 }
 
-export function Sidebar({ sessions, selected, onSelect }: SidebarProps) {
+export function Sidebar({
+  sessions,
+  selected,
+  onSelect,
+  added,
+  onAddRepo,
+  onRemoveRepo,
+  onNewSession,
+}: SidebarProps) {
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
   const toggle = (key: string) =>
     setCollapsed((prev) => {
@@ -66,7 +80,7 @@ export function Sidebar({ sessions, selected, onSelect }: SidebarProps) {
   let body;
   if (sessions === null) {
     body = <p className="sidebar-note">Looking for sessions…</p>;
-  } else if (sessions.length === 0) {
+  } else if (sessions.length === 0 && added.length === 0) {
     body = (
       <div className="sidebar-empty">
         <p>No sessions.</p>
@@ -77,22 +91,44 @@ export function Sidebar({ sessions, selected, onSelect }: SidebarProps) {
       </div>
     );
   } else {
-    body = groupSessions(sessions).map((group) => {
+    body = groupSessions(sessions, added).map((group) => {
       const open = !collapsed.has(group.key);
       const listId = `group-${group.key || "none"}`;
       return (
         <section className="group" key={group.key} aria-label={group.label}>
-          <button
-            className="group-header"
-            aria-expanded={open}
-            aria-controls={listId}
-            title={group.key || undefined}
-            onClick={() => toggle(group.key)}
-          >
-            <span className="chevron" aria-hidden="true" />
-            <span className="label">{group.label}</span>
-            <span className="count">{group.sessions.length}</span>
-          </button>
+          <div className="group-bar">
+            <button
+              className="group-header"
+              aria-expanded={open}
+              aria-controls={listId}
+              title={group.key || undefined}
+              onClick={() => toggle(group.key)}
+            >
+              <span className="chevron" aria-hidden="true" />
+              <span className="label">{group.label}</span>
+              <span className="count">{group.sessions.length}</span>
+            </button>
+            {group.added && (
+              <button
+                className="group-action"
+                aria-label="Remove from list"
+                title="Remove from list"
+                onClick={() => onRemoveRepo(group.key)}
+              >
+                ×
+              </button>
+            )}
+            {group.key && (
+              <button
+                className="group-action"
+                aria-label={`New session in ${group.label}`}
+                title={`New session in ${group.key}`}
+                onClick={() => onNewSession(group)}
+              >
+                +
+              </button>
+            )}
+          </div>
           {open && (
             <ul className="sessions" id={listId}>
               {group.sessions.map((s) => (
@@ -113,6 +149,9 @@ export function Sidebar({ sessions, selected, onSelect }: SidebarProps) {
   return (
     <nav className="sidebar" aria-label="Sessions">
       {body}
+      <button className="add-repo" onClick={onAddRepo}>
+        Add repo…
+      </button>
     </nav>
   );
 }

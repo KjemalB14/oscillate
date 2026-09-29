@@ -34,7 +34,8 @@ Decided 2026-09-28. The decisions, rejections and acceptance criteria are in
 `PLAN-new-sessions.md`.
 
 - [x] **1. Rows stay still.** Shipped 2026-09-28 (below).
-- [ ] **2. New session.**
+- [x] **2. New session.** Shipped 2026-09-28 (below), except item 12, a hand check
+  in the release app that is still open.
   - A "+" on a repo group opens a prompt box, with a prompt and a permission mode, that
     runs `claude --bg` in that repo, then selects and attaches the new session.
   - "Add repo…" opens a folder picker, and chosen repos persist in the app's own
@@ -91,6 +92,11 @@ gate on merge instead of push. See `NOTES.md` → *Chapter 2 closed*.)
 
 ## Shipped
 
+- 2026-09-28: chapter 3, slice 2: a new session from the app. "+" on a repo group runs
+  `claude --bg` with the prompt and mode, then selects and attaches the new session.
+  "Add repo…" and "Remove from list" keep the app's own `repos.json`. Items 5–11 pass
+  under `npm run e2e`, each claim proved red by a break. Item 12 (by hand, release app)
+  is still open. The results are in `NOTES.md`.
 - 2026-09-28: chapter 3, slice 1: rows stay still. Each row keeps the `startedAt` the
   app first saw for its key, for the life of the app process, and a webview reload
   keeps the order. Items 1–4 pass under `npm run e2e`, each proved red by a break. The

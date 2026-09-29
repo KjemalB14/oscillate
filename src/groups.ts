@@ -7,6 +7,8 @@ export interface RepoGroup {
   label: string;
   /** Newest first by `sortKey`, so a respawned or renamed session keeps its place. */
   sessions: Session[];
+  /** Added with "Add repo…", so it shows with no sessions and can be removed from the list. */
+  added: boolean;
 }
 
 export const NO_FOLDER = "No folder";
@@ -22,10 +24,12 @@ function tail(cwd: string, depth: number): string {
 /**
  * Groups sessions by `cwd`, one group per directory, sorted by label. Two repos with the
  * same basename (`~/code/beta`, `~/other/beta`) are labelled `code/beta` and `other/beta`;
- * a group only gets as many parent segments as it needs to be told apart.
+ * a group only gets as many parent segments as it needs to be told apart. Each `added`
+ * repo (a canonical path) has a group even with no sessions, merged with the one its
+ * sessions make.
  */
-export function groupSessions(sessions: Session[]): RepoGroup[] {
-  const byCwd = new Map<string, Session[]>();
+export function groupSessions(sessions: Session[], added: readonly string[] = []): RepoGroup[] {
+  const byCwd = new Map<string, Session[]>(added.map((cwd) => [cwd, []]));
   for (const s of sessions) {
     const list = byCwd.get(s.cwd);
     if (list) list.push(s);
@@ -58,6 +62,7 @@ export function groupSessions(sessions: Session[]): RepoGroup[] {
       key: cwd,
       label: tail(cwd, depth.get(cwd)!),
       sessions: [...list].sort((a, b) => b.sortKey - a.sortKey || a.key.localeCompare(b.key)),
+      added: added.includes(cwd),
     }))
     .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }));
 }

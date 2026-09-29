@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import "./App.css";
+import type { RepoGroup } from "./groups";
+import { NewSessionBox } from "./NewSessionBox";
+import { useAddedRepos } from "./repos";
 import { Sidebar } from "./Sidebar";
 import { TerminalPane, type PaneStatus } from "./TerminalPane";
 import { useSessions } from "./sessions";
@@ -13,6 +16,9 @@ export const PANE_CAP = 6;
 
 export default function App() {
   const sessions = useSessions();
+  const repos = useAddedRepos();
+  // The group whose "+" prompt box is open; one box at a time.
+  const [newIn, setNewIn] = useState<RepoGroup | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   // Pane ids in the order they were opened, so a pane's DOM never moves.
   const [open, setOpen] = useState<string[]>([]);
@@ -53,7 +59,15 @@ export default function App() {
   const byId = new Map((sessions ?? []).map((s) => [s.id, s]));
   return (
     <div className="app">
-      <Sidebar sessions={sessions} selected={selected} onSelect={select} />
+      <Sidebar
+        sessions={sessions}
+        selected={selected}
+        onSelect={select}
+        added={repos.list}
+        onAddRepo={repos.add}
+        onRemoveRepo={repos.remove}
+        onNewSession={setNewIn}
+      />
       <main className="pane-area">
         {open.map((id) => (
           <TerminalPane
@@ -67,6 +81,16 @@ export default function App() {
           />
         ))}
         {selected === null && <p className="pane-empty">Select a session to open it here.</p>}
+        {newIn && (
+          <NewSessionBox
+            key={newIn.key}
+            cwd={newIn.key}
+            label={newIn.label}
+            sessions={sessions}
+            onStarted={select}
+            onClose={() => setNewIn(null)}
+          />
+        )}
       </main>
     </div>
   );

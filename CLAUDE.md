@@ -75,10 +75,18 @@ and what it didn't prove are in `NOTES.md` → *Chapter 2 closed*.
 
 **Chapter 3, start and end sessions from the app, is open** (decided 2026-09-28).
 `PLAN-new-sessions.md` holds its decisions and acceptance criteria, in four slices:
-frozen row order, "+" and "Add repo…", the trust pane, then Stop and Remove. **Slice 1
-has shipped:** rows sort by `sortKey`, the `startedAt` the app first saw for each key
-(`sessions::FirstSeen`, applied by the poll thread). Slice 2 is next. **The trust pane's
-`claude` is never killed by the app** (the plan says why).
+frozen row order, "+" and "Add repo…", the trust pane, then Stop and Remove.
+- **Slice 1 has shipped:** rows sort by `sortKey`, the `startedAt` the app first saw for
+  each key (`sessions::FirstSeen`, applied by the poll thread).
+- **Slice 2 has shipped, except its hand check (item 12).**
+  - "+" opens `src/NewSessionBox.tsx`: `newsession.rs` runs `claude --bg`, then the
+    new id is selected once it's listed.
+  - "Add repo…" and "Remove from list" keep `repos.json` in the app data dir
+    (`repos.rs`; `OSCILLATE_DATA_DIR` in e2e).
+  - The fake answers `--bg` with real captured bytes, and `relaunch()` restarts the
+    app mid-spec (`e2e/README.md`).
+- Slice 3, the trust pane, is next. **The trust pane's `claude` is never killed by the
+  app** (the plan says why).
 
 - Dev: `npm run tauri dev`. Release binary: `npx tauri build --no-bundle`.
 - Install: quit the app, then `npx tauri build` and `ditto
