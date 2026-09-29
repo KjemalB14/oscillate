@@ -148,9 +148,10 @@ drove it in a new `mktemp -d` git repo, added with "Add repo…" (Claude Code 2.
     the first "didn't seem to take", and by then the keyboard belonged to the new
     session. A PTY attach from a script stayed attached for 8s, so `claude attach`
     doesn't leave by itself. `claude rm` removed the session.
-  - **A usability gap:** after the trust `claude` exits, nothing shows for the second
-    or so of the retry, so a user repeats the last keys into the new session. It's in
-    `BACKLOG.md`.
+  - **A usability gap:** between `/exit` and the new pane, the author saw nothing that
+    said it had worked. The likely cause is the trust `claude`'s own exit, which leaves
+    its pane unchanged for a moment; the retry box's "Starting…" comes after that. This
+    wasn't timed, and it's in `BACKLOG.md`.
 
 ### Not verified
 - **Dock → Quit and logout still end the app** while a trust pane is open, since
