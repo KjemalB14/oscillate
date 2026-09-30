@@ -65,6 +65,11 @@ when nothing changed.
       and a signal then ends it as before. Two exits leave no line: ←'s exec (agent view
       logs `agents-exit` instead) and a SIGKILL. Its read waits in a 50ms `select`, as
       `trust.pl`'s does, or the handlers would never run.
+    - `fake.lingerOnHangup(ms)` makes every later attach wait `ms` after a hangup
+      before it exits, as a slow one would. Without it the fake exits within ~50ms,
+      faster than the app can start another `claude`, so an app that runs `stop` without
+      waiting for the attach to be reaped still looks right. It outlives a spec; put it
+      back to 0.
     - Ctrl+Z prints `[detached from <id>]`, logs `detach`, and exits 0.
     - ← logs `agents pid=<n>`, then execs `claude agents` **in the same pid**, as the
       real attach does (`NOTES.md`, *← is an `exec`*). The log comes first because
@@ -142,7 +147,7 @@ when nothing changed.
   before it ends: `sidebar-rows.spec.ts` expects no groups at all under `empty`. The
   same goes for the untrusted list (`fake.trust()` what you `untrust()`), and for
   `fake.answerRm()`: a spec that makes `rm` refuse must call `fake.answerRm()` before it
-  ends.
+  ends. `fake.lingerOnHangup()` too.
   - **A trust pane left open blocks quitting**, and `relaunch()`'s SIGTERM would hang
     up its `claude`. A spec that opens one must answer it before it ends. After
   `relaunch()`, everything the app kept only in memory is gone, such as sort keys and

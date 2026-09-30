@@ -94,7 +94,16 @@ frozen row order, "+" and "Add repo…", the trust pane, then Stop and Remove.
     the stock one can't be refused.
   - The fake models per-directory trust and a trust prompt that logs every signal
     (`e2e/README.md`).
-- Slice 4, Stop and Remove, is next.
+- **Slice 4 has shipped; item 22 (by hand) is still open.**
+  - A right-click on a background row opens `Sidebar.tsx`'s menu: Stop while live,
+    Remove always. Remove asks in one line under the row (`src/rowActions.ts`).
+  - `end_session` (`lib.rs`, `endsession.rs`) closes the row's attach through
+    `pty::end_attaches` and waits for its reap. Only then does it run exactly
+    `claude stop|rm <id>`, and no attach is admitted until that returns.
+  - An `rm` refusal (stdout, exit 1) shows verbatim under the row. The fake answers
+    `stop` and `rm`, logs attach exits, and `rightClick()` sends the `contextmenu` this
+    driver doesn't (`e2e/README.md`).
+  - Next: item 22 in the reinstalled release app, then close chapter 3.
 
 - Dev: `npm run tauri dev`. Release binary: `npx tauri build --no-bundle`.
 - Install: quit the app, then `npx tauri build` and `ditto

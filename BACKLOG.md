@@ -45,9 +45,11 @@ Decided 2026-09-28. The decisions, rejections and acceptance criteria are in
   - An untrusted repo opens a pane running interactive `claude` so you can accept
     trust. When it exits, the app retries once with the prompt it kept.
   - The app never kills that process, and refuses Cmd+Q while it runs.
-- [ ] **4. Stop and remove.** A context menu runs `claude stop` or `claude rm` after
-  closing the PTY. Only Remove asks for confirmation. An `rm` refusal is shown verbatim,
-  with no `--discard-unpushed`.
+- [x] **4. Stop and remove.** Shipped 2026-09-30 (below). Item 22 (by hand) is still
+  open.
+  - A context menu runs `claude stop` or `claude rm` after closing the PTY. Only Remove
+    asks for confirmation. An `rm` refusal is shown verbatim, with no
+    `--discard-unpushed`.
 
 ### Chapter 4 — It tells you when it needs you (closes MVP 1)
 
@@ -98,6 +100,11 @@ gate on merge instead of push. See `NOTES.md` → *Chapter 2 closed*.)
 
 ## Shipped
 
+- 2026-09-30: chapter 3, slice 4: Stop and Remove. A background row's context menu
+  offers Stop while live and Remove always. Only Remove confirms. Either one runs only
+  after the row's attach has been reaped, and an `rm` refusal is shown verbatim. Items
+  18–21 pass under `npm run e2e`, and all 14 breaks turned red. Item 22 (by hand, release
+  app) is still open. The results are in `NOTES.md`.
 - 2026-09-28: chapter 3, slice 2: a new session from the app. "+" on a repo group runs
   `claude --bg` with the prompt and mode, then selects and attaches the new session.
   "Add repo…" and "Remove from list" keep the app's own `repos.json`. Items 5–11 pass

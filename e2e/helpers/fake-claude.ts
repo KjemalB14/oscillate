@@ -136,6 +136,7 @@ exit 2
     mkdirSync(join(this.claudeDir, "sessions"), { recursive: true });
     mkdirSync(join(this.claudeDir, "jobs"), { recursive: true });
     writeFileSync(join(this.dir, "log"), "");
+    this.lingerOnHangup(0);
     this.setOut("all-states");
     this.answerBg({ id: CAPTURED_BG_ID });
     this.answerRm();
@@ -364,6 +365,16 @@ exit 2
     return realpathSync(dir);
   }
 
+  /**
+   * How long every later fake `attach` takes to exit after a hangup, in ms: it waits
+   * that long, then logs its `attach-exit` and dies of the signal. 0 (the default) exits
+   * at once. Keep it under 2000: the app SIGKILLs an attach that outlives its hangup by 2s.
+   * The setting outlives a spec: call `lingerOnHangup(0)` before it ends.
+   */
+  lingerOnHangup(ms: number) {
+    writeFileSync(join(this.dir, "attach-linger"), String(ms / 1000));
+  }
+
   /** Every `attach` the app started, oldest first, with its start time. */
   attaches(id?: string): { id: string; pid: number; at: number; cwd: string }[] {
     return this.log()
@@ -485,9 +496,16 @@ if ($ARGV[0] eq "agents") {
 my $id = $ARGV[1];
 say_log("attach $id pid=$$ at=" . now() . " cwd=" . getcwd());
 sub gone { say_log("attach-exit $id pid=$$ at=" . now() . " how=$_[0]") }
-# Every signal that ends it is logged first, then ends it as before.
+# Every signal that ends it is logged, then ends it as before. A hangup first waits
+# \`attach-linger\` seconds, as an attach that is slow to exit would.
+sub linger { open my $f, "<", "$d/attach-linger" or return 0; my $s = <$f>; close $f; ($s // 0) + 0 }
 for my $sig (qw(HUP INT QUIT TERM PIPE)) {
-    $SIG{$sig} = sub { gone("signal-$sig"); $SIG{$sig} = "DEFAULT"; kill $sig, $$ };
+    $SIG{$sig} = sub {
+        if ($sig eq "HUP" && (my $wait = linger()) > 0) { Time::HiRes::sleep($wait) }
+        gone("signal-$sig");
+        $SIG{$sig} = "DEFAULT";
+        kill $sig, $$;
+    };
 }
 print "fake attach $id\r\n";
 print "\e[?1000h\e[?1006h\e[?1004h";
