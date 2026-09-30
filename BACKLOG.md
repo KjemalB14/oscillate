@@ -12,6 +12,10 @@ tick it, and move the line into the dated **Shipped** list at the bottom in the 
 commit. New ideas that arrive mid-task go into **Later** or **Undecided** instead of
 derailing the branch.
 
+**Reference when deciding:** [zeron](https://github.com/zeronsh/zeron) is a close
+neighbor. `/decide` should check it for features and UI before settling a chapter, but
+not for architecture (`NOTES.md`, *zeron, a reference project*).
+
 ---
 
 ## Next — MVP 1

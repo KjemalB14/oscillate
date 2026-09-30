@@ -9,6 +9,43 @@ Newest entries at the top.
 
 ---
 
+## 2026-09-30 — zeron, a reference project
+
+The author found [zeronsh/zeron](https://github.com/zeronsh/zeron) (MIT, Rust, ~2.5k stars,
+active as of 2026-09-30). It's "a native control plane for Claude Code, Codex, Cursor,
+Devin and other coding agents", and the author wants it to inform features and, later, UI.
+It changes nothing now, and chapter 3 continues as planned. This is from its README and
+`ARCHITECTURE.md` only, with none of its code read.
+
+**Where it matches Oscillate:** one native window, a sidebar of sessions across folders, a
+click that opens one, and new sessions started from the app. Its screenshot shows a Claude
+Code session with a live branch-diff sidebar.
+
+**Where it differs, and why the architecture isn't borrowed:**
+- **It owns the sessions.** Its own Rust engine daemon "runs agents, owns … terminals,
+  repos/worktrees", and it keeps transcripts in its own Loro CRDT docs. Oscillate is a thin
+  client over Claude Code's own daemon (invariant 1). Borrowing its engine would reverse
+  the first locked decision, so it's a reference for *what* to offer, not *how* to run it.
+- **Multi-agent and multi-device.** Codex, Cursor, Devin and others, plus optional sync
+  through Cloudflare Durable Objects. Neither is in Oscillate's scope.
+- **UI toolkit:** gpui (Zed's), against Oscillate's Tauri + xterm.js (locked).
+
+**Worth mining when a chapter opens** (unverified until someone reads its code or runs it):
+- An **attention-sorted** sessions list: relevant to chapter 4 (*It tells you when it needs
+  you*), and in tension with chapter 3's frozen row order. That tension is `/decide`'s
+  to weigh.
+- A **spaces** filter: a searchable dropdown of (device, folder) pairs, "All spaces"
+  included, which also hosts space management. Compare with our repo groups and "Add repo…".
+- **Tabs as a local viewport** onto the list. Closing a tab only hides it, archiving is an
+  explicit sidebar action, and a sidebar click reopens. Compare with our pool of 6 panes.
+- A **new-session canvas** with a space picker that defaults to the current filter, else the
+  last space. Compare with our "+" box.
+- **Unseen markers** and resort animations on the sidebar.
+- A **branch-diff sidebar** beside the running session.
+- In-app update flow ("Update ready — restart to apply").
+
+---
+
 ## 2026-09-30 — Chapter 3, item 22: installed, not yet checked
 
 - **The slice-4 release app is installed.** The bundle built from 7ccc38b (09:40, after
