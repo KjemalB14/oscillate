@@ -68,6 +68,11 @@ Decided 2026-09-28. The decisions, rejections and acceptance criteria are in
 
 ## Later — MVP 2
 
+- [ ] **The reload test flakes in full runs** (`sidebar-order.spec.ts`, item 4). It timed out
+  at 30s in 2 of 8 full runs on slice 4's branch, 0 of 4 on `main`, and 2 of 5 in slice
+  3 (`NOTES.md`, *Chapter 3, slice 4*). The hang is a WebDriver `execute` across
+  `location.reload()`. Next: log each `execute`'s start and end around the reload in a
+  failing run, before changing anything.
 - [ ] **Thread view.** A read-only, custom-formatted rendering of the session transcript
   (`~/.claude/projects/<repo>/<session-id>.jsonl`), toggled against the terminal. It also
   works for terminal-tab sessions.

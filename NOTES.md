@@ -74,7 +74,8 @@ single word ok"), which were then removed.
 
 ### Verified
 
-- `cargo test`: 40 passed, 3 runs out of 3 with exit 0, before the specs.
+- `cargo test`: 40 passed, 7 full runs out of 7 with exit 0 (3 before the specs, 4
+  before the merge).
 - **Items 18–21** pass under `npm run e2e`, in `e2e/stop-remove.spec.ts` by `e2e-author`,
   7 tests.
 - **Breaks,** 14, each applied, run and reverted by a scratch script. Each turned red the
@@ -101,6 +102,23 @@ single word ok"), which were then removed.
 - Item 21's whole-run claim is checked at the end of `stop-remove.spec.ts` over
   `fake.argvs()`, so it covers the specs that run before it, and itself. The argv is
   also pinned in Rust (`argv_is_the_verb_and_the_id_only`).
+
+### The reload test flaked again
+
+`sidebar-order.spec.ts`'s reload test is the one slice 3 saw time out. It timed out at
+mocha's 30s in **2 of 8 full runs of this branch**. Its own waits give up at 10s and 5s,
+so a WebDriver `execute` hung across the reload.
+- **`main` (45b575e) passed 4 of 4.**
+- **This branch with only the fake attach's old blocking read put back passed 4 of 4 on
+  that test.** Its items 19–20 failed by design, since that read logs no exits.
+- The two failures were the 1st and 4th of the first four runs, and the next four all
+  passed.
+- 2 of 8 against 0 of 8 doesn't pin a cause. The one suspect is the attach's new 50ms
+  `select` loop. It's the only change that runs during the specs before this one, but
+  it makes no request of the page, and slice 3 saw 2 of 5 on a tree without it.
+- **Merged anyway, with this recorded.** The failing test can't be edited here (it's
+  `e2e-author`'s), and the gate needs a green run of the exact tree, which it got.
+  `BACKLOG.md` → *Later* has the follow-up.
 
 ### Harness defects found on the way
 
