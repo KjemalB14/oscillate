@@ -9,6 +9,33 @@ Newest entries at the top.
 
 ---
 
+## 2026-09-30 — Chapter 3, item 22 passed
+
+Run from a `claude --bg` job again (7787b9c5), so `drive-window` still failed with
+`-1743`. The author was at the laptop and clicked; this session checked each step
+against `claude agents --json --all` (Claude Code 2.1.286) and the installed app's child
+processes (`pgrep -P <app pid>`). The app was the slice-4 build in `/Applications`, not
+rebuilt.
+
+- **Start.** "+" with mode `plan` and "Read every file in src-tauri/src and summarize
+  each one". The daemon listed `04d29813` ("summarize tauri src files"), `working`, and
+  the app's only child was `claude attach 04d29813`.
+  - **It started in the wrong group.** Its `cwd` was `tmp.ergPPXxr2Q`, the temp repo from
+    item 17's hand check (2026-09-28), which is still an added repo in the installed
+    app's `repos.json`. Its group sorts right after `oscillate`. That didn't matter for
+    item 22: any real throwaway session from the app will do. The session found no
+    `src-tauri/src` and asked a question, so it was `blocked` (needs you) at Stop time,
+    which still counts as live.
+- **Stop.** Right-click → Stop. The daemon listed `04d29813` as `stopped`, no process
+  named it, and the app had no attach child. The row showed the solid grey stopped dot,
+  and the pane said "Detached — click to reattach".
+- **Remove.** Right-click → Remove → confirm. The row went, and `04d29813` was gone from
+  `agents --json --all`. The other four sessions were unchanged throughout.
+- **Not checked:** the exact `stop`/`rm` argv the app ran. The e2e fake pins it (items
+  19–21), and real `claude` doesn't log it.
+
+---
+
 ## 2026-09-30 — zeron, a reference project
 
 The author found [zeronsh/zeron](https://github.com/zeronsh/zeron) (MIT, Rust, ~2.5k stars,

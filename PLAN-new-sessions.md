@@ -161,10 +161,11 @@ Slice 4 shipped 2026-09-30. Items 18–21 pass under `npm run e2e`
 (`e2e/stop-remove.spec.ts`, by `e2e-author`). All 14 breaks turned red the claims they
 target, two only after the fake learned a slow hangup and the spec checked the row is
 displayed (`NOTES.md`, *Chapter 3, slice 4*). Item 21's whole-run claim covers the specs
-that run before that file, and the file itself. **Item 22, by hand, is not done yet.**
-The slice-4 app has been in `/Applications` since 2026-09-30. But both sessions that
-could have run the check were `--bg` jobs, which can't drive the window (`NOTES.md`,
-*Chapter 3, item 22*). The chapter closes once it passes.
+that run before that file, and the file itself. **Item 22 passed by hand** on 2026-09-30
+in the installed slice-4 app, with the author clicking and each step checked against
+`claude agents --json --all` (2.1.286). Stop left the session `stopped` with no attach, and
+Remove took it out of the list (`NOTES.md`, *Chapter 3, item 22 passed*). Every item has
+now passed, and the chapter is closed.
 
 Every item is checked by `npm run e2e` against the fake `claude`, unless it says it's
 checked by hand. The specs come from `e2e-author`, and each is proved red by a break.
