@@ -6,6 +6,7 @@
 import { execFileSync, spawn } from "node:child_process";
 import { openSync } from "node:fs";
 import { join } from "node:path";
+import type { ChainablePromiseElement } from "webdriverio";
 import { FakeClaude } from "./fake-claude.js";
 import { ROOT } from "./results.js";
 
@@ -144,4 +145,26 @@ export async function press(...keys: (keyof typeof KEYS | string)[]): Promise<vo
     return null;
   }, events);
   if (error) throw new Error(`press(): ${error}`);
+}
+
+/**
+ * Right-clicks `el` as WebKit does on macOS: `mousedown`, `contextmenu`, then `mouseup`,
+ * all with button 2, at the element's center. Use this, not `click({ button: "right" })`:
+ * this driver sends only the `mousedown` and `mouseup`, so no context menu ever opens.
+ */
+export async function rightClick(el: ChainablePromiseElement): Promise<void> {
+  await el.waitForExist();
+  const target = (await el.getElement()) as WebdriverIO.Element;
+  const error = await browser.execute((node: HTMLElement) => {
+    const r = node.getBoundingClientRect();
+    const at = { clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 };
+    const hit = document.elementFromPoint(at.clientX, at.clientY);
+    if (!hit || !(hit === node || node.contains(hit))) return `the element isn't under its own center (${hit?.tagName})`;
+    const init = { ...at, button: 2, bubbles: true, cancelable: true, composed: true, view: window };
+    hit.dispatchEvent(new MouseEvent("mousedown", { ...init, buttons: 2 }));
+    hit.dispatchEvent(new MouseEvent("contextmenu", { ...init, buttons: 2 }));
+    hit.dispatchEvent(new MouseEvent("mouseup", { ...init, buttons: 0 }));
+    return null;
+  }, target as unknown as HTMLElement);
+  if (error) throw new Error(`rightClick(): ${error}`);
 }

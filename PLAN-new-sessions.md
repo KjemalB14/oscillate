@@ -126,10 +126,11 @@ Plus how the chapter is sliced.
   (Claude Code 2.1.284). The bytes are in `src-tauri/fixtures/bg/` and
   `e2e/fixtures/bg-stdout.txt`, and the fake answers with them (`NOTES.md`,
   *Chapter 3, slice 2*).
-- **The real `rm` refusal text.** It's shown verbatim, so only its exit code matters to
-  the code. Slice 4 captures one against a real session with an unpushed worktree
-  commit, if one can be made cheaply. Otherwise the refusal is covered by the fake only,
-  and that is recorded.
+- ~~**The real `rm` refusal text.**~~ Settled in slice 4. `rm` refuses with exit 1, and
+  prints the text on **stdout** with empty stderr (Claude Code 2.1.285). It names the
+  `--discard-unpushed` value. The bytes are in `src-tauri/fixtures/end/` and
+  `e2e/fixtures/rm-refused-stdout.txt`, and the fake answers with them (`NOTES.md`,
+  *Chapter 3, slice 4*).
 - **Accepting trust needs the author's hands.** A Claude session answers every trust
   prompt with "No, exit", so it can verify item 17's "not trusted" branch against real
   `claude`, but not the accepted branch.
@@ -154,7 +155,15 @@ Slice 3 shipped 2026-09-28. Items 13–16 pass under `npm run e2e`
 targets. One break stayed green at first, and item 16 was strengthened because of it
 (`NOTES.md`, *Chapter 3, slice 3*). **Item 17 passed by hand** in the reinstalled
 release app, both branches, and so did the real Cmd+Q refusal. What is still unchecked
-is in that entry's "Not verified". Slice 4 isn't started.
+is in that entry's "Not verified".
+
+Slice 4 shipped 2026-09-30. Items 18–21 pass under `npm run e2e`
+(`e2e/stop-remove.spec.ts`, by `e2e-author`). All 14 breaks turned red the claims they
+target, two only after the fake learned a slow hangup and the spec checked the row is
+displayed (`NOTES.md`, *Chapter 3, slice 4*). Item 21's whole-run claim covers the specs
+that run before that file, and the file itself. **Item 22, by hand, is not done yet:**
+the slice was built in a `--bg` job, which can't drive the window. The chapter closes
+once it passes.
 
 Every item is checked by `npm run e2e` against the fake `claude`, unless it says it's
 checked by hand. The specs come from `e2e-author`, and each is proved red by a break.

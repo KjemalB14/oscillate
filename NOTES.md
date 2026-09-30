@@ -9,6 +9,139 @@ Newest entries at the top.
 
 ---
 
+## 2026-09-30 — Chapter 3, slice 4: Stop and Remove
+
+### What real `stop` and `rm` print (the PLAN's "real rm refusal text")
+
+Captured against Claude Code 2.1.285, with throwaway plan-mode sessions ("Reply with the
+single word ok"), which were then removed.
+- **A new `mktemp -d` repo can't host one.** `--bg` there says `Workspace not trusted`,
+  and trust may only be answered "No, exit". So the probe ran `claude --bg --worktree
+  rmprobe` in this repo, which is trusted and ignores `.claude/worktrees/`
+  (`.git/info/exclude`). One empty commit in that worktree gave it something unpushed.
+- **`rm` refused with exit 1, on stdout, with empty stderr.** The text is in
+  `src-tauri/fixtures/end/rm-refused-2.1.285.txt` and `e2e/fixtures/rm-refused-stdout.txt`.
+  It said "63 unpushed commits", because this repo has no remote, and it ended with the
+  full `claude rm <id> --discard-unpushed <commit>@<worktree-id>` command.
+- **The cleanup didn't use that flag.** `git worktree unlock` and `remove --force`, then
+  `git branch -D worktree-rmprobe`, then a plain `claude rm`, which printed `removed <id>`
+  plus the worktree's path.
+- **`stop` prints `stopped <id>`, exit 0.** A live session (`working`/`busy`) is then
+  listed as `stopped`, with no `status` or `pid`. A session already `done` stays `done`.
+  So Stop on only live rows matches the daemon.
+- `stop` and `rm` of an unknown id, run in an untrusted directory, fail with `No job
+  matching '<id>'`, not a trust error. The app runs them in the session's `cwd` when it
+  still exists, else `$HOME`.
+
+### What was built
+
+- The command is `end_session(id, end)` in `lib.rs`, and `endsession.rs` holds the argv:
+  exactly `stop <id>` or `rm <id>`, with the id checked to be letters and digits.
+- `pty::end_attaches` closes the session's attach and waits on `reaped` until its child
+  is gone, 5s at most (the watch SIGKILLs at 2s).
+  - It returns a guard. While the guard is held, `admit` refuses a new attach to that
+    session, so a click during `stop` can't put an attach beside it.
+  - `admit` checks the set under the `live` lock, and `end_attaches` marks the set before
+    taking that lock. So a racing attach is either refused, or already in `live` and
+    closed there.
+- The one-shot spawn, timeout and "stderr, then stdout" code moved from `newsession.rs`
+  to `claude::run_once` / `Ran::shown`, shared by `--bg`, `stop` and `rm`.
+- `src/rowActions.ts` holds each row's confirm, running and failed state.
+  - `Sidebar.tsx` shows the menu (`role="menu"`) where the pointer is, kept inside the
+    window, and under the row when opened from the keyboard.
+  - Remove's one-line confirm and a failure's verbatim `<pre>` sit under the row. A
+    running row's detail says "Stopping…" or "Removing…".
+- Every row suppresses WKWebView's own context menu (Reload, in a release build).
+  Terminal-tab rows open nothing.
+
+### Decisions, and what was rejected
+
+- **Rust waits for the reap, not the page.** The page only knows that its PTY's exit
+  event fired. Rust knows the child was reaped, and it can refuse a reattach meanwhile.
+  **Rejected:** closing the pane in React, then invoking `stop` from its exit callback.
+  A reattach click could slip in between, and the page can't tell that apart.
+- **The refusal shows under its row, not in the main area.** It's about that row, and
+  the pane beside it may belong to another session. It's a `<pre>`, selectable, wrapped,
+  and scrolls past 220px. It stays until dismissed or until the next action on the row.
+- **Stop isn't offered on `unknown` rows.** The PLAN names working, needs you and paused
+  as live, and an unknown state might be finished.
+- **`rightClick()` is harness code that sends WebKit's `mousedown`, `contextmenu`,
+  `mouseup`.** This embedded driver's `click({ button: "right" })` sends only the mouse
+  events, so no `contextmenu` ever fires. Its keys are page-dispatched events too
+  (`press()`), so this is the same kind of stand-in. **Rejected:** a visible "…" button
+  per row as the tested path. The PLAN chose a context menu, and a button would test a
+  path the author doesn't take.
+
+### Verified
+
+- `cargo test`: 40 passed, 7 full runs out of 7 with exit 0 (3 before the specs, 4
+  before the merge).
+- **Items 18–21** pass under `npm run e2e`, in `e2e/stop-remove.spec.ts` by `e2e-author`,
+  7 tests.
+- **Breaks,** 14, each applied, run and reverted by a scratch script. Each turned red the
+  claims named:
+  - Stop on every row turned 18 red (two tests). A menu on terminal-tab rows turned
+    18's terminal-tab claim red.
+  - No drain turned 19 and 20's confirm red. A second `stop` turned 19, 20 and 21 red.
+    A guard that never drops (no reattach) turned 19 red.
+  - Remove without a confirm turned 20 and 21 red. A Cancel that hangs up every PTY
+    turned 20's cancel claim red.
+  - An extra `--yes` on `rm`, and an extra `--force-remove-worktree`, each turned 20
+    and 21 red.
+  - The first line of the refusal only, a non-selectable refusal, a second `rm` 1.5s
+    later, and a row hidden while the refusal shows, each turned 21 red.
+  - A drain that hangs up but doesn't wait for the reap turned 19 and 20 red.
+- **Two breaks stayed green at first.**
+  - **The no-wait drain.** The fake attach died within ~50ms of its hangup, which is
+    faster than the app starts the next `claude`, so the race never showed. The fake now
+    has `lingerOnHangup(ms)`, and items 19–20 run with 600ms.
+  - **The hidden row.** At first the break set `hidden` on the row, which `.session`'s
+    `display: grid` overrides, so the break did nothing. With `display: none`, it stayed
+    green because the spec checked the row existed, not that it showed. `e2e-author`
+    changed it to `toBeDisplayed()`.
+- Item 21's whole-run claim is checked at the end of `stop-remove.spec.ts` over
+  `fake.argvs()`, so it covers the specs that run before it, and itself. The argv is
+  also pinned in Rust (`argv_is_the_verb_and_the_id_only`).
+
+### The reload test flaked again
+
+`sidebar-order.spec.ts`'s reload test is the one slice 3 saw time out. It timed out at
+mocha's 30s in **2 of 8 full runs of this branch**. Its own waits give up at 10s and 5s,
+so a WebDriver `execute` hung across the reload.
+- **`main` (45b575e) passed 4 of 4.**
+- **This branch with only the fake attach's old blocking read put back passed 4 of 4 on
+  that test.** Its items 19–20 failed by design, since that read logs no exits.
+- The two failures were the 1st and 4th of the first four runs, and the next four all
+  passed.
+- 2 of 8 against 0 of 8 doesn't pin a cause. The one suspect is the attach's new 50ms
+  `select` loop. It's the only change that runs during the specs before this one, but
+  it makes no request of the page, and slice 3 saw 2 of 5 on a tree without it.
+- **Merged anyway, with this recorded.** The failing test can't be edited here (it's
+  `e2e-author`'s), and the gate needs a green run of the exact tree, which it got.
+  `BACKLOG.md` → *Later* has the follow-up.
+
+### Harness defects found on the way
+
+- **The embedded driver's right-click sends no `contextmenu`** (above). `harness.check.ts`
+  now proves `rightClick()` delivers all three events.
+- **`script(1)` can't give a child a terminal under WDIO**, whose stdin is a socket
+  (`tcgetattr/ioctl: Operation not supported on socket`). The attach-exit check goes
+  through the app's own PTY instead.
+- The fake attach's read loop is now the 50ms `select` loop `trust.pl` has, so its signal
+  handlers run and a hangup is logged as `attach-exit`.
+
+### Not verified
+
+- **Item 22, by hand.** This slice was built in a `claude --bg` job, which can't send
+  Apple Events, so `drive-window` couldn't run.
+- **How fast a real `claude attach` exits on a hangup.** The 600ms linger is a model, not
+  a measurement. The 5s bound on the wait is only a guard.
+- **`rm`'s other refusal**, the one that names `--force-remove-worktree`, wasn't
+  produced. It's shown the same way, since only the exit code matters.
+- **A keyboard-opened menu** (the context-menu key) has no spec.
+
+---
+
 ## 2026-09-28 — Chapter 3, slice 3: the trust pane
 
 ### What an untrusted `--bg` prints

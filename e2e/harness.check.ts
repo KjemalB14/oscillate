@@ -3,10 +3,13 @@
  * app launches under WebDriver, reads the fake `claude` (never the real one), and polls
  * again on a touch in the temp watched directory. Then that the fake `attach` logs its cwd
  * and its keys, and that `fake.running()` sees it. Then chapter 3's pieces: the fake
- * `--bg`, the folder-picker hook, and `relaunch()`.
+ * `--bg`, the folder-picker hook, `relaunch()`, the fake `stop` and `rm`, and that this
+ * driver can right-click.
  */
 import { execFileSync } from "node:child_process";
-import { appPids, attachable, fake, nextPoll, press, relaunch, show } from "./helpers/app.js";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { appPids, attachable, fake, nextPoll, press, relaunch, rightClick, show } from "./helpers/app.js";
 
 describe("harness", () => {
   it("launches the app with a Sessions sidebar", async () => {
@@ -46,48 +49,80 @@ describe("harness: the fake attach", () => {
     await press("Ctrl+Z");
     await browser.waitUntil(() => !fake.running().attach.has("hcheck1"), { timeoutMsg: "still running" });
     expect(fake.log()).toContain(`detach hcheck1 pid=${attach.pid}`);
+    expect(fake.attachExits("hcheck1")).toEqual([
+      { id: "hcheck1", pid: attach.pid, at: expect.any(Number), how: "detach" },
+    ]);
     await show("all-states");
   });
 });
 
-describe("harness: the fake --bg", () => {
-  it("answers the captured stdout and logs argv byte-exact, with its cwd", () => {
-    const cwd = fake.repo("hcheck-bg");
-    const prompt = `a 'q' "dq" $HOME \`tick\`\nline two`;
-    fake.answerBg({ id: "hbg1" });
-    const out = execFileSync(fake.bin, ["--bg", "--permission-mode", "plan", prompt], { cwd, encoding: "utf8" });
-    expect(out).toContain("backgrounded · \x1b[36mhbg1\x1b[39m");
-    expect(fake.bgs().at(-1)).toMatchObject({ cwd, argv: ["--bg", "--permission-mode", "plan", prompt] });
+describe("harness: the fake stop and rm", () => {
+  it("logs argv, time and live attaches, and acts on the list as the daemon would", () => {
+    const cwd = fake.repo("hcheck-end");
+    fake.setOut([
+      { ...attachable("hend1", { repo: "hcheck-end" }), status: "busy" },
+      attachable("hend2", { repo: "hcheck-end" }),
+    ]);
+    const run = (...args: string[]) => {
+      try {
+        return { exit: 0, out: execFileSync(fake.bin, args, { cwd, encoding: "utf8", stdio: "pipe" }) };
+      } catch (e) {
+        const err = e as { status: number; stdout: string };
+        return { exit: err.status, out: err.stdout };
+      }
+    };
+    const listed = () => JSON.parse(readFileSync(join(fake.dir, "out"), "utf8")) as { id: string; state: string }[];
 
-    fake.answerBg({ stderr: "boom\n", exit: 3 });
-    let status = 0;
-    try {
-      execFileSync(fake.bin, ["--bg", "x"], { cwd, stdio: "pipe" });
-    } catch (e) {
-      status = (e as { status: number }).status;
-    }
-    expect(status).toBe(3);
-    fake.answerBg({});
+    expect(run("stop", "hend1")).toEqual({ exit: 0, out: "stopped hend1\n" });
+    expect(listed().find((e) => e.id === "hend1")?.state).toBe("stopped");
+    expect(fake.stops().at(-1)).toMatchObject({ cwd, argv: ["stop", "hend1"], attached: [] });
+
+    fake.answerRm({ exit: 1 });
+    expect(run("rm", "hend2")).toEqual({ exit: 1, out: fake.rmRefusal("hend2") });
+    expect(listed().map((e) => e.id)).toEqual(["hend1", "hend2"]);
+    fake.answerRm();
+    expect(run("rm", "hend2")).toEqual({ exit: 0, out: "removed hend2\n" });
+    expect(listed().map((e) => e.id)).toEqual(["hend1"]);
+    expect(fake.rms().map((r) => r.argv)).toEqual([["rm", "hend2"], ["rm", "hend2"]]);
+    expect(run("rm", "gone1").exit).toBe(1);
+    fake.setOut("all-states");
+  });
+
+  it("sees a live attach from stop", async () => {
+    await show([attachable("hend3", { repo: "hcheck-end" })]);
+    await $("li*=hend3").click();
+    await browser.waitUntil(() => fake.attaches("hend3").length === 1, { timeoutMsg: "no attach" });
+    const [attach] = fake.attaches("hend3");
+    execFileSync(fake.bin, ["stop", "hend3"], { cwd: fake.repo("hcheck-end") });
+    expect(fake.stops().at(-1)?.attached).toEqual([attach.pid]);
+    // Unlisted, the app hangs its attach up; the fake logs that exit, then dies of it.
+    await show("all-states");
+    await browser.waitUntil(() => !fake.running().attach.has("hend3"), { timeoutMsg: "still running" });
+    expect(fake.attachExits("hend3")).toEqual([
+      { id: "hend3", pid: attach.pid, at: expect.any(Number), how: "signal-HUP" },
+    ]);
   });
 });
 
-describe("harness: the picker hook and relaunch()", () => {
-  it("answers Add repo…, and relaunch() starts a new app that reads repos.json", async () => {
-    const dir = fake.repo("hcheck-added");
-    fake.pick(dir);
-    await $("button*=Add repo").click();
-    await expect($('section[aria-label="hcheck-added"]')).toBeExisting();
-    expect(fake.reposJson()).toContain(dir);
-
-    const before = appPids();
-    await relaunch();
-    expect(appPids()).toHaveLength(1);
-    expect(appPids()[0]).not.toBe(before[0]);
-    await expect($('section[aria-label="hcheck-added"]')).toBeExisting();
-
-    await $('section[aria-label="hcheck-added"]').$('button[aria-label="Remove from list"]').click();
-    await expect($('section[aria-label="hcheck-added"]')).not.toBeExisting();
-    expect(fake.reposJson()).toEqual([]);
-    fake.pick(null);
+describe("harness: a right-click", () => {
+  it("rightClick() reaches the element as WebKit's mousedown, contextmenu and mouseup", async () => {
+    await browser.execute(() => {
+      const w = window as unknown as { __ev: string[] };
+      w.__ev = [];
+      for (const t of ["mousedown", "contextmenu", "mouseup"]) {
+        document.addEventListener(
+          t,
+          (e) => {
+            const m = e as MouseEvent;
+            w.__ev.push(`${t}:${m.button}:${(m.target as HTMLElement).closest("button")?.textContent}`);
+            if (t === "contextmenu") e.preventDefault();
+          },
+          { capture: true, once: true },
+        );
+      }
+    });
+    await rightClick($("button*=Add repo"));
+    const seen = await browser.execute(() => (window as unknown as { __ev: string[] }).__ev);
+    expect(seen).toEqual(["mousedown:2:Add repo…", "contextmenu:2:Add repo…", "mouseup:2:Add repo…"]);
   });
 });

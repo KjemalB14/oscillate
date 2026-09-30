@@ -1,0 +1,2 @@
+removed a5546f19
+  worktree: “/Users/khalilbrewington/Github Repos/oscillate/.claude/worktrees/rmprobe”

@@ -3,7 +3,7 @@
  * its `claude` children with a clean environment, so the fake's behavior lives in files
  * beside it (`out`, `log`) that the tests rewrite while the app is running.
  *
- * It answers five commands, and logs each:
+ * It answers seven commands, and logs each:
  * - `agents --json --all` prints `out` (`poll`).
  * - `--bg ...` runs `bg.pl`: it logs its pid, start time, cwd and every argument
  *   byte-exact (`bg pid=<n> at=<ms> cwd=<dir> argv=<hex>,<hex>,...`). In a directory
@@ -17,14 +17,21 @@
  *   Esc is "No, exit": it exits 1 and the cwd stays untrusted. Every signal that could end
  *   or stop it (all but SIGWINCH, which a resize sends) is logged as `trust-signal`, and
  *   the fatal ones then end it. Each exit is logged as `trust-exit`.
- * - `attach <id>` runs `tty.pl`: it logs its pid and cwd (`attach <id> pid=<n> cwd=<dir>`),
- *   turns on mouse and focus reports as Claude's TUI does, and logs every byte it reads
- *   (`keys <id> <pid> <hex>`). Ctrl+Z prints `[detached from <id>]`, logs `detach`, and
- *   exits 0. ← logs `agents pid=<n>` and execs `claude agents` in the same pid, as the
- *   real attach does.
+ * - `attach <id>` runs `tty.pl`: it logs its pid, start time and cwd
+ *   (`attach <id> pid=<n> at=<ms> cwd=<dir>`), turns on mouse and focus reports as Claude's
+ *   TUI does, and logs every byte it reads (`keys <id> <pid> <hex>`). Ctrl+Z prints
+ *   `[detached from <id>]`, logs `detach`, and exits 0. ← logs `agents pid=<n>` and execs
+ *   `claude agents` in the same pid, as the real attach does. Every exit but ←'s exec and
+ *   a SIGKILL is logged as `attach-exit <id> pid=<n> at=<ms> how=<detach|eof|signal-NAME>`.
+ * - `stop <id>` and `rm <id>` run `end.pl`: it logs `<stop|rm> pid=<n> at=<ms> cwd=<dir>
+ *   argv=<hex>,… attached=<pids>`, where `attached` is every live `attach <id>` at its
+ *   start. Then it acts on `out` as the daemon would: `stop` makes a live entry `stopped`,
+ *   and a successful `rm` drops the entry. An id `out` doesn't list fails as the real one
+ *   does. `rm` answers what `answerRm` set: by default `removed <id>`, exit 0; with a
+ *   non-zero exit, the refusal a real `rm` printed (`fixtures/rm-refused-stdout.txt`).
  * - `agents`, agent view: repaints an 8KB screen every 10ms, and answers a hangup by
  *   writing 32KB before it exits, as the real one does, so it exits only if the app
- *   keeps reading.
+ *   keeps reading. It logs `agents-exit pid=<n> at=<ms>` as it goes.
  *
  * One fake serves the whole run, because the service launches one app: the config
  * creates it and exports its paths in `process.env`, which the workers inherit.
@@ -51,6 +58,10 @@ const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), "..", "fixtures")
 const DIR_VAR = "OSCILLATE_E2E_FAKE_DIR";
 /** The id in `fixtures/bg-stdout.txt`, the output of a real `claude --bg`. */
 const CAPTURED_BG_ID = "c59cf1b2";
+/** The id in `fixtures/rm-refused-stdout.txt`, a real `claude rm` refusal. */
+const CAPTURED_RM_ID = "a5546f19";
+/** Where an `rm` answer names its session; `end.pl` puts the id there. */
+const ID_MARK = "@@ID@@";
 /** Where the captured untrusted stderr names its directory; `bg.pl` puts its cwd there. */
 const CWD_MARK = "@@CWD@@";
 /** The file `touch()` rewrites; `claudeDirTree()` leaves it out. */
@@ -106,6 +117,7 @@ case "$*" in
 "") [ $# -eq 0 ] && exec /usr/bin/perl "$d/trust.pl" ;;
 "agents") exec /usr/bin/perl "$d/tty.pl" agents ;;
 "attach "*) exec /usr/bin/perl "$d/tty.pl" "$@" ;;
+"stop "*|"rm "*) exec /usr/bin/perl "$d/end.pl" "$@" ;;
 esac
 echo "unexpected: $*" >> "$d/log"
 exit 2
@@ -115,6 +127,7 @@ exit 2
     writeFileSync(join(this.dir, "tty.pl"), TTY_PL);
     writeFileSync(join(this.dir, "bg.pl"), BG_PL);
     writeFileSync(join(this.dir, "trust.pl"), TRUST_PL);
+    writeFileSync(join(this.dir, "end.pl"), END_PL);
     // The captured error names the throwaway repo it came from; each answer names its own.
     const untrustedErr = readFileSync(join(FIXTURES, "bg-untrusted-stderr.txt"), "utf8");
     const capturedDir = untrustedErr.match(/ in (\S+) once /)![1];
@@ -123,8 +136,10 @@ exit 2
     mkdirSync(join(this.claudeDir, "sessions"), { recursive: true });
     mkdirSync(join(this.claudeDir, "jobs"), { recursive: true });
     writeFileSync(join(this.dir, "log"), "");
+    this.lingerOnHangup(0);
     this.setOut("all-states");
     this.answerBg({ id: CAPTURED_BG_ID });
+    this.answerRm();
     this.pick(null);
     writeFileSync(join(this.dir, "claude-dir-baseline.json"), JSON.stringify(this.claudeDirTree()));
   }
@@ -143,6 +158,73 @@ exit 2
     writeFileSync(join(this.dir, "bg-err"), opts.stderr ?? "");
     writeFileSync(join(this.dir, "bg-exit"), String(opts.exit ?? 0));
     writeFileSync(join(this.dir, "bg-delay"), String((opts.delayMs ?? 0) / 1000));
+  }
+
+  /**
+   * What every later `claude rm` answers, until this is called again; `answerRm()` puts
+   * back the default. By default it prints `removed <id>`, exits 0 and drops the entry
+   * from `out`. With a non-zero `exit`, stdout defaults to `rmRefusal(<id>)`, the text a
+   * real `rm` printed when it refused, and the entry stays.
+   */
+  answerRm(opts: { stdout?: string; stderr?: string; exit?: number } = {}) {
+    const failing = (opts.exit ?? 0) !== 0;
+    const stdout = opts.stdout ?? (failing ? this.rmRefusal(ID_MARK) : `removed ${ID_MARK}\n`);
+    writeFileSync(join(this.dir, "rm-out"), stdout);
+    writeFileSync(join(this.dir, "rm-err"), opts.stderr ?? "");
+    writeFileSync(join(this.dir, "rm-exit"), String(opts.exit ?? 0));
+  }
+
+  /**
+   * The refusal a real `claude rm` printed on stdout (exit 1) for a session whose worktree
+   * had commits on no remote (Claude Code 2.1.285), naming `id`. It names a
+   * `--discard-unpushed` value, as the real one does.
+   */
+  rmRefusal(id: string): string {
+    return readFileSync(join(FIXTURES, "rm-refused-stdout.txt"), "utf8").replaceAll(CAPTURED_RM_ID, id);
+  }
+
+  /** Every `claude stop` the app ran, oldest first. See `ends()`. */
+  stops(): End[] {
+    return this.ends("stop");
+  }
+
+  /** Every `claude rm` the app ran, oldest first. See `ends()`. */
+  rms(): End[] {
+    return this.ends("rm");
+  }
+
+  /**
+   * Every `claude stop` or `rm`: its pid, start time, cwd, argv after `claude`
+   * (byte-exact), and the pids of every `attach <id>` still alive when it started.
+   */
+  private ends(verb: "stop" | "rm"): End[] {
+    return this.log()
+      .map((l) => l.match(/^(stop|rm) pid=(\d+) at=(\d+) cwd=(.*) argv=([0-9a-f,]*) attached=([0-9,]*)$/))
+      .filter((m): m is RegExpMatchArray => !!m && m[1] === verb)
+      .map((m) => ({
+        pid: Number(m[2]),
+        at: Number(m[3]),
+        cwd: m[4],
+        argv: m[5] ? m[5].split(",").map((h) => Buffer.from(h, "hex").toString("utf8")) : [],
+        attached: m[6] ? m[6].split(",").map(Number) : [],
+      }));
+  }
+
+  /**
+   * Every argv the fake was run with, as far as its log shows: `--bg`, trust, `stop` and
+   * `rm` byte-exact, attaches and polls rebuilt, and anything unexpected as one string.
+   */
+  argvs(): string[][] {
+    const hex = (h: string) => (h ? h.split(",").map((x) => Buffer.from(x, "hex").toString("utf8")) : []);
+    return this.log().flatMap((l): string[][] => {
+      if (l === "poll") return [["agents", "--json", "--all"]];
+      let m = l.match(/^(?:bg|trust|stop|rm) pid=\d+ at=\d+ cwd=.* argv=([0-9a-f,]*)(?: attached=[0-9,]*)?$/);
+      if (m) return [hex(m[1])];
+      m = l.match(/^attach (\S+) pid=\d+ /);
+      if (m) return [["attach", m[1]]];
+      m = l.match(/^unexpected: (.*)$/);
+      return m ? [[m[1]]] : [];
+    });
   }
 
   /**
@@ -283,12 +365,35 @@ exit 2
     return realpathSync(dir);
   }
 
-  /** Every `attach` the app started, oldest first. */
-  attaches(id?: string): { id: string; pid: number; cwd: string }[] {
+  /**
+   * How long every later fake `attach` takes to exit after a hangup, in ms: it waits
+   * that long, then logs its `attach-exit` and dies of the signal. 0 (the default) exits
+   * at once. Keep it under 2000: the app SIGKILLs an attach that outlives its hangup by 2s.
+   * The setting outlives a spec: call `lingerOnHangup(0)` before it ends.
+   */
+  lingerOnHangup(ms: number) {
+    writeFileSync(join(this.dir, "attach-linger"), String(ms / 1000));
+  }
+
+  /** Every `attach` the app started, oldest first, with its start time. */
+  attaches(id?: string): { id: string; pid: number; at: number; cwd: string }[] {
     return this.log()
-      .map((l) => l.match(/^attach (\S+) pid=(\d+) cwd=(.*)$/))
+      .map((l) => l.match(/^attach (\S+) pid=(\d+) at=(\d+) cwd=(.*)$/))
       .filter((m): m is RegExpMatchArray => !!m && (!id || m[1] === id))
-      .map((m) => ({ id: m[1], pid: Number(m[2]), cwd: m[3] }));
+      .map((m) => ({ id: m[1], pid: Number(m[2]), at: Number(m[3]), cwd: m[4] }));
+  }
+
+  /**
+   * How and when each `attach` exited, oldest first: `detach` (Ctrl+Z), `eof` (its
+   * terminal closed) or `signal-<NAME>` (a hangup, say). An attach that ← turned into
+   * agent view, or that was SIGKILLed, logs no exit; `running()` and `stops()`'s
+   * `attached` still see it.
+   */
+  attachExits(id?: string): { id: string; pid: number; at: number; how: string }[] {
+    return this.log()
+      .map((l) => l.match(/^attach-exit (\S+) pid=(\d+) at=(\d+) how=(\S+)$/))
+      .filter((m): m is RegExpMatchArray => !!m && (!id || m[1] === id))
+      .map((m) => ({ id: m[1], pid: Number(m[2]), at: Number(m[3]), how: m[4] }));
   }
 
   /**
@@ -350,6 +455,16 @@ exit 2
   }
 }
 
+/** A `claude stop` or `claude rm` the app ran, as `stops()` and `rms()` read it back. */
+export interface End {
+  pid: number;
+  at: number;
+  cwd: string;
+  argv: string[];
+  /** The live `attach <id>` pids when it started; empty when the app had closed them. */
+  attached: number[];
+}
+
 /**
  * The fake's terminal side, in Perl (always in /usr/bin on macOS) because it needs raw
  * mode and byte-at-a-time reads. `attach <id>` and `agents` are one script, so ← can exec
@@ -359,15 +474,17 @@ const TTY_PL = String.raw`use strict;
 use warnings;
 use Cwd qw(getcwd);
 use IO::Handle;
+use Time::HiRes qw(time);
 my ($d) = $0 =~ m{^(.*)/[^/]*$};
 sub say_log { open my $l, ">>", "$d/log" or die; print $l "@_\n"; close $l }
+sub now { int(time() * 1000) }
 STDOUT->autoflush(1);
 system("stty raw -echo");
 if ($ARGV[0] eq "agents") {
     # Like the real one, it answers a hangup by writing before it exits (restoring the
     # terminal), so it only gets out once the app reads what it wrote.
     my $screen = ("fake agent view " . ("x" x 60) . "\r\n") x 100;
-    $SIG{HUP} = sub { print $screen x 4; exit 0 };
+    $SIG{HUP} = sub { print $screen x 4; say_log("agents-exit pid=$$ at=" . now()); exit 0 };
     while (1) {
         print $screen;
         my $in = "";
@@ -377,23 +494,45 @@ if ($ARGV[0] eq "agents") {
     exit 0;
 }
 my $id = $ARGV[1];
-say_log("attach $id pid=$$ cwd=" . getcwd());
+say_log("attach $id pid=$$ at=" . now() . " cwd=" . getcwd());
+sub gone { say_log("attach-exit $id pid=$$ at=" . now() . " how=$_[0]") }
+# Every signal that ends it is logged, then ends it as before. A hangup first waits
+# \`attach-linger\` seconds, as an attach that is slow to exit would.
+sub linger { open my $f, "<", "$d/attach-linger" or return 0; my $s = <$f>; close $f; ($s // 0) + 0 }
+for my $sig (qw(HUP INT QUIT TERM PIPE)) {
+    $SIG{$sig} = sub {
+        if ($sig eq "HUP" && (my $wait = linger()) > 0) { Time::HiRes::sleep($wait) }
+        gone("signal-$sig");
+        $SIG{$sig} = "DEFAULT";
+        kill $sig, $$;
+    };
+}
 print "fake attach $id\r\n";
 print "\e[?1000h\e[?1006h\e[?1004h";
-while (sysread(STDIN, my $buf, 4096)) {
+# Perl runs signal handlers between ops, and macOS restarts a blocked read, so the read
+# waits in a select with a timeout: a handler runs within 50ms of its signal.
+while (1) {
+    my $in = "";
+    vec($in, fileno(STDIN), 1) = 1;
+    next unless select(my $ready = $in, undef, undef, 0.05) > 0;
+    sysread(STDIN, my $buf, 4096) or last;
     say_log("keys $id $$ " . unpack("H*", $buf));
     if ($buf =~ /\x1a/) {
         print "\r\n[detached from $id]\r\n";
         say_log("detach $id pid=$$");
+        gone("detach");
         exit 0;
     }
     if ($buf =~ /\e\[D|\eOD/) {
         # Logged before the exec: that is when agent view appears, and the app may hang
         # this pid up before the exec'd agent view gets to run a line.
         say_log("agents pid=$$");
+        $SIG{$_} = "DEFAULT" for qw(HUP INT QUIT TERM PIPE);
         exec("$d/claude", "agents");
     }
 }
+gone("eof");
+exit 0;
 `;
 
 /**
@@ -491,4 +630,67 @@ while (1) {
 }
 say_log("trust-exit pid=$$ how=eof");
 exit 0;
+`;
+
+/**
+ * The fake `claude stop <id>` and `claude rm <id>`. It logs first, with the live
+ * `attach <id>` pids at that moment, then acts on `out` as the daemon would, and answers.
+ * `out` is rewritten by rename, so a poll never reads half of it.
+ */
+const END_PL = String.raw`use strict;
+use warnings;
+use Cwd qw(getcwd);
+use JSON::PP;
+use Time::HiRes qw(time);
+my ($d) = $0 =~ m{^(.*)/[^/]*$};
+my $at = int(time() * 1000);
+sub slurp { open my $f, "<", "$d/$_[0]" or return ""; local $/; my $s = <$f>; close $f; $s }
+my ($verb, $id) = @ARGV;
+$id //= "";
+my @attached;
+for (split /\n/, ` + "`ps -axo pid=,stat=,command=`" + String.raw`) {
+    next unless /^\s*(\d+)\s+(\S+)\s+(.*)$/;
+    my ($pid, $stat, $cmd) = ($1, $2, $3);
+    push @attached, $pid if $stat !~ /^Z/ && $cmd =~ m{/tty\.pl attach \Q$id\E$};
+}
+open my $l, ">>", "$d/log" or die;
+print $l "$verb pid=$$ at=$at cwd=" . getcwd() . " argv=" . join(",", map { unpack("H*", $_) } @ARGV)
+    . " attached=" . join(",", @attached) . "\n";
+close $l;
+my $json = JSON::PP->new->canonical;
+my $list = eval { $json->decode(slurp("out")) } || [];
+my ($entry) = grep { ($_->{id} // "") eq $id } @$list;
+binmode STDOUT;
+binmode STDERR;
+if (@ARGV != 2 || !$entry) {
+    print STDERR $verb eq "stop"
+        ? "No job matching '$id'. Run 'claude agents' to list running sessions.\n"
+        : "No job matching '$id'\n";
+    exit 1;
+}
+sub put_out {
+    open my $f, ">", "$d/out.tmp" or die;
+    print $f $json->encode($list);
+    close $f;
+    rename "$d/out.tmp", "$d/out" or die;
+}
+if ($verb eq "stop") {
+    if (($entry->{state} // "") =~ /^(working|blocked)$/) {
+        $entry->{state} = "stopped";
+        delete @$entry{qw(status pid waitingFor)};
+        put_out();
+    }
+    print "stopped $id\n";
+    exit 0;
+}
+my $exit = slurp("rm-exit") + 0;
+(my $out = slurp("rm-out")) =~ s/\@\@ID\@\@/$id/g;
+(my $err = slurp("rm-err")) =~ s/\@\@ID\@\@/$id/g;
+if ($exit == 0) {
+    @$list = grep { ($_->{id} // "") ne $id } @$list;
+    put_out();
+}
+print STDOUT $out;
+print STDERR $err;
+exit $exit;
 `;
