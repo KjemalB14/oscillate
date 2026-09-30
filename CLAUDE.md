@@ -103,7 +103,9 @@ frozen row order, "+" and "Add repo…", the trust pane, then Stop and Remove.
   - An `rm` refusal (stdout, exit 1) shows verbatim under the row. The fake answers
     `stop` and `rm`, logs attach exits, and `rightClick()` sends the `contextmenu` this
     driver doesn't (`e2e/README.md`).
-  - Next: item 22 in the reinstalled release app, then close chapter 3.
+  - **The slice-4 app is installed** in `/Applications` (2026-09-30).
+  - Next: item 22 in that app, from an **interactive** session or by the author, then
+    close chapter 3 (`NOTES.md`, *Chapter 3, item 22*).
 
 - Dev: `npm run tauri dev`. Release binary: `npx tauri build --no-bundle`.
 - Install: quit the app, then `npx tauri build` and `ditto

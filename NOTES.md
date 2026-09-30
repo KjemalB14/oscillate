@@ -9,6 +9,24 @@ Newest entries at the top.
 
 ---
 
+## 2026-09-30 — Chapter 3, item 22: installed, not yet checked
+
+- **The slice-4 release app is installed.** The bundle built from 7ccc38b (09:40, after
+  the merge) replaced slice 3's in `/Applications`. The author approved quitting the running
+  app, `codesign -v` passed, and the app relaunched.
+- **Item 22 didn't run.** This session was a `claude --bg` job again, so `drive-window`
+  failed with `Not authorized to send Apple events to System Events (-1743)`. The author was
+  remote and couldn't drive it either. No throwaway session was created: the daemon's list
+  was the same before and after.
+- **`osascript … to quit` did quit the app, but still exited 1.** Quitting the old app from
+  a `--bg` job works. Anything that needs System Events doesn't.
+- **What the check needs:** an interactive session at the laptop, or the author. A plan-mode
+  "Reply ok" session is `done` in seconds, and Stop is only offered on live rows. So the
+  throwaway needs a prompt that keeps it working, e.g. "Read every file in src-tauri/src
+  and summarize each one". **Never Stop the row of the session doing the check.**
+
+---
+
 ## 2026-09-30 — Chapter 3, slice 4: Stop and Remove
 
 ### What real `stop` and `rm` print (the PLAN's "real rm refusal text")
