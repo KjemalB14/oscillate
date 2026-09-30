@@ -1,0 +1,4 @@
+stopped a5546f19
+[2m  worktree retained at /Users/khalilbrewington/Github Repos/oscillate/.claude/worktrees/rmprobe[22m
+[2m  run 'claude rm a5546f19' to remove worktree and job state[22m
+[2m[22m

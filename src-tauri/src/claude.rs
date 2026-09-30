@@ -10,11 +10,13 @@
 //! (an nvm switch or a reinstall). NOTES.md, *Chapter 2 closed*, has the reasoning.
 
 use std::ffi::OsString;
+use std::io::Read;
 use std::path::PathBuf;
-use std::process::{Command, Stdio};
+use std::process::{Command, ExitStatus, Stdio};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::thread;
+use std::time::{Duration, Instant};
 
 use crate::pty::{clean_env, BASE_PATH};
 
@@ -87,6 +89,74 @@ pub fn child_env(bin: &ClaudeBin) -> Vec<(OsString, OsString)> {
     env
 }
 
+/// What a one-shot `claude` printed, and how it exited.
+pub struct Ran {
+    /// `claude`'s first argument, for a failure that printed nothing.
+    cmd: String,
+    pub status: ExitStatus,
+    pub stdout: String,
+    pub stderr: String,
+}
+
+impl Ran {
+    /// A failure as shown verbatim: stderr, then stdout. `rm` refuses on stdout alone.
+    pub fn shown(&self) -> String {
+        let mut shown = if self.stderr.trim().is_empty() { String::new() } else { self.stderr.clone() };
+        if !self.stdout.trim().is_empty() {
+            if !shown.is_empty() && !shown.ends_with('\n') {
+                shown.push('\n');
+            }
+            shown.push_str(&self.stdout);
+        }
+        if shown.is_empty() {
+            format!("`claude {}` {}", self.cmd, self.status)
+        } else {
+            shown
+        }
+    }
+}
+
+/// Runs `claude <args>` in `cwd` through `resolver` (invariant 4): argv with no shell,
+/// stdin closed, the clean environment. A child still running after `timeout` is killed,
+/// and that is an error.
+pub fn run_once(resolver: &Resolver, args: &[String], cwd: &str, timeout: Duration) -> Result<Ran, String> {
+    let cmd = args.first().cloned().unwrap_or_default();
+    let claude = resolver.get()?;
+    let mut child = Command::new(&claude.path)
+        .args(args)
+        .env_clear()
+        .envs(child_env(&claude))
+        .current_dir(cwd)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("couldn't run {}: {e}", claude.path.display()))?;
+    let read_all = |mut r: Box<dyn Read + Send>| {
+        thread::spawn(move || {
+            let mut out = Vec::new();
+            let _ = r.read_to_end(&mut out);
+            String::from_utf8_lossy(&out).into_owned()
+        })
+    };
+    let stdout = read_all(Box::new(child.stdout.take().unwrap()));
+    let stderr = read_all(Box::new(child.stderr.take().unwrap()));
+    let deadline = Instant::now() + timeout;
+    let status = loop {
+        match child.try_wait().map_err(|e| e.to_string())? {
+            Some(status) => break status,
+            None if Instant::now() >= deadline => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(format!("`claude {cmd}` didn't answer in {}s.", timeout.as_secs()));
+            }
+            None => thread::sleep(Duration::from_millis(20)),
+        }
+    };
+    let (stdout, stderr) = (stdout.join().unwrap(), stderr.join().unwrap());
+    Ok(Ran { cmd, status, stdout, stderr })
+}
+
 fn login_shell_lookup() -> Result<ClaudeBin, String> {
     if let Some(path) = std::env::var_os("OSCILLATE_CLAUDE_BIN") {
         // Not the app's own PATH: a dev launch would leak npm's into the child.
@@ -120,7 +190,6 @@ fn login_shell_lookup() -> Result<ClaudeBin, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::{Duration, Instant};
 
     fn counting(path: PathBuf, delay: Duration) -> Arc<Resolver> {
         Arc::new(Resolver::new(move || {
@@ -198,6 +267,22 @@ mod tests {
         assert!(r.get().is_err());
         assert!(r.get().is_err());
         assert_eq!(calls.load(Ordering::Relaxed), 2);
+    }
+
+    #[test]
+    fn a_refusal_on_stdout_alone_is_shown_verbatim() {
+        use std::os::unix::process::ExitStatusExt;
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/end/rm-refused-2.1.285.txt");
+        let refusal = std::fs::read_to_string(path).unwrap();
+        let ran = |stdout: &str, stderr: &str| Ran {
+            cmd: "rm".into(),
+            status: ExitStatus::from_raw(1 << 8),
+            stdout: stdout.into(),
+            stderr: stderr.into(),
+        };
+        assert_eq!(ran(&refusal, "").shown(), refusal);
+        assert_eq!(ran("out\n", "err").shown(), "err\nout\n");
+        assert_eq!(ran("", " \n").shown(), "`claude rm` exit status: 1");
     }
 
     #[test]

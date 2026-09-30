@@ -11,7 +11,8 @@
 //! has been reaped, not just until it was told to go. A watch thread detaches any child
 //! that has stopped being `claude attach <id>`, because ← execs agent view in the same
 //! pid (NOTES.md, chapter 2 slice 3), and agent view could attach this PTY to another
-//! session.
+//! session. Stop and Remove go through `end_attaches`, which closes a session's attach and
+//! waits for it to be reaped before `claude stop`/`rm` runs, and admits none meanwhile.
 //!
 //! **The app never signals the trust PTY's child** (PLAN-new-sessions.md, *Trust*): a
 //! `claude` killed at the trust prompt once left its folder trusted (NOTES.md, *An
@@ -19,7 +20,7 @@
 //! and it refuses a trust PTY. So the pool, the ← watch, a reload and app exit all pass it
 //! by, and quitting is refused while it lives (`trust_info`).
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::ffi::OsString;
 use std::io::{Read, Write};
 use std::path::Path;
@@ -47,6 +48,9 @@ const WATCH_EVERY: Duration = Duration::from_millis(250);
 const KILL_AFTER: Duration = Duration::from_secs(2);
 /// How long a spawn waits for the same session's previous child to be reaped.
 const SPAWN_WAIT: Duration = Duration::from_secs(3);
+/// How long Stop or Remove waits for the session's attach to be reaped. The watch
+/// SIGKILLs a child that outlives its hangup by `KILL_AFTER`, so this is only a guard.
+const END_WAIT: Duration = Duration::from_secs(5);
 
 /// The only variables a PTY inherits from the app. Everything else comes from the login
 /// shell's own profile, exactly as when the app is launched from Finder. Inheriting a dev
@@ -86,6 +90,8 @@ pub struct Ptys {
     live: Mutex<HashMap<u32, Pty>>,
     /// Signalled whenever a PTY leaves `live`.
     reaped: Condvar,
+    /// Sessions whose `claude stop` or `rm` is under way: no attach to them is admitted.
+    ending: Mutex<HashSet<String>>,
 }
 
 /// A pending start that ran into `Workspace not trusted`: where the trust `claude` runs,
@@ -286,6 +292,9 @@ fn admit<'a>(ptys: &'a Ptys, kind: &Kind) -> Result<std::sync::MutexGuard<'a, Ha
         Kind::Attach(session) => {
             let deadline = Instant::now() + SPAWN_WAIT;
             loop {
+                if ptys.ending.lock().unwrap().contains(session) {
+                    return Err(format!("{session} is being stopped or removed"));
+                }
                 match live.values().find(|pty| pty.session() == Some(session)) {
                     None => return Ok(live),
                     Some(pty) if pty.closing.is_none() => {
@@ -460,6 +469,48 @@ pub fn pty_ack(ptys: State<'_, Ptys>, id: u32, bytes: usize) {
 pub fn pty_kill(ptys: State<'_, Ptys>, id: u32) {
     if let Some(pty) = ptys.live.lock().unwrap().get_mut(&id) {
         pty.close();
+    }
+}
+
+/// Held while `claude stop` or `rm` runs for a session; until it drops, no attach to that
+/// session is admitted.
+pub struct Ending<'a> {
+    ptys: &'a Ptys,
+    session: String,
+}
+
+impl Drop for Ending<'_> {
+    fn drop(&mut self) {
+        self.ptys.ending.lock().unwrap().remove(&self.session);
+    }
+}
+
+/// Closes every PTY attached to `session` and waits until each child has been reaped, so
+/// no `claude attach <session>` of the app's is left when Stop or Remove runs. Until the
+/// returned guard drops, a new attach to it is refused. `admit` checks `ending` under the
+/// `live` lock, and this marks it before taking that lock, so an attach either is refused
+/// or is already in `live` to be closed here.
+pub fn end_attaches<'a>(ptys: &'a Ptys, session: &str) -> Result<Ending<'a>, String> {
+    if !ptys.ending.lock().unwrap().insert(session.to_string()) {
+        return Err(format!("{session} is already being stopped or removed"));
+    }
+    let ending = Ending { ptys, session: session.to_string() };
+    let deadline = Instant::now() + END_WAIT;
+    let mut live = ptys.live.lock().unwrap();
+    loop {
+        let mut attached = false;
+        for pty in live.values_mut().filter(|pty| pty.session() == Some(session)) {
+            pty.close();
+            attached = true;
+        }
+        if !attached {
+            return Ok(ending);
+        }
+        let left = deadline.saturating_duration_since(Instant::now());
+        if left.is_zero() {
+            return Err(format!("the attach to {session} didn't exit, so nothing was run"));
+        }
+        live = ptys.reaped.wait_timeout(live, left).unwrap().0;
     }
 }
 

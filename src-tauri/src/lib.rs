@@ -1,4 +1,5 @@
 mod claude;
+mod endsession;
 mod newsession;
 mod poll;
 mod pty;
@@ -8,7 +9,7 @@ mod sessions;
 mod testutil;
 mod watch;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::mpsc::{self, Sender};
 
 use tauri::menu::{Menu, MenuItem, MenuItemKind};
@@ -94,6 +95,30 @@ fn start_session(
     Ok(id)
 }
 
+/// Stop or Remove, from a row's menu: `claude stop <id>` or `claude rm <id>`. The row's
+/// attach, if any, is closed and reaped first, and none is admitted until the command has
+/// returned. A failure, such as `rm`'s refusal, comes back verbatim. Polls at once, so the
+/// row updates without waiting for the next timed poll.
+#[tauri::command(async)]
+fn end_session(
+    app: AppHandle,
+    model: State<'_, SessionModel>,
+    ptys: State<'_, pty::Ptys>,
+    id: String,
+    end: endsession::End,
+) -> Result<(), String> {
+    endsession::args(end, &id)?;
+    let _no_attach = pty::end_attaches(&ptys, &id)?;
+    // Where the session ran, if that's still there; `stop` and `rm` work from anywhere.
+    let cwd = session_cwd(&app, &id)
+        .filter(|cwd| Path::new(cwd).is_dir())
+        .or_else(|| std::env::var("HOME").ok())
+        .unwrap_or_else(|| "/".into());
+    let result = endsession::run(&claude::resolver(), end, &id, &cwd);
+    let _ = model.poll_now.send(());
+    result
+}
+
 #[tauri::command]
 fn repos_list(repos: State<'_, repos::Repos>) -> Vec<String> {
     repos.list()
@@ -174,6 +199,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             sessions_snapshot,
             start_session,
+            end_session,
             quit,
             repos_list,
             repos_add,

@@ -509,3 +509,102 @@ body,
   box-shadow: 0 8px 24px rgb(0 0 0 / 40%);
   font: 13px/1.35 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
 }
+
+/* A background row's context menu: Stop while live, Remove always. */
+.row-menu {
+  position: fixed;
+  z-index: 30;
+  min-width: 120px;
+  padding: 4px;
+  border: 1px solid var(--hairline);
+  border-radius: 7px;
+  background: var(--rail);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 45%);
+}
+
+.row-menu button {
+  display: block;
+  width: 100%;
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+}
+
+.row-menu button:hover,
+.row-menu button:focus-visible {
+  background: var(--focus);
+  color: #fff;
+  outline: none;
+}
+
+/* Remove's one-line confirm, under its row. */
+.row-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0 4px 18px;
+  padding: 5px 8px;
+  border-radius: 5px;
+  background: rgb(239 107 107 / 10%);
+  font-size: 12px;
+}
+
+.row-confirm-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row-confirm button,
+.row-error button {
+  padding: 2px 8px;
+  border: 1px solid var(--hairline);
+  border-radius: 5px;
+  background: var(--rail-hover);
+  color: var(--text);
+  font: inherit;
+}
+
+.row-confirm .row-confirm-remove {
+  border-color: rgb(239 107 107 / 50%);
+  color: var(--failed);
+}
+
+.row-confirm button:focus-visible,
+.row-error button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+/* A failed Stop or Remove, verbatim and selectable (an `rm` refusal). */
+.row-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 2px 0 4px 18px;
+}
+
+.row-error pre {
+  flex: 1;
+  min-width: 0;
+  max-height: 220px;
+  overflow: auto;
+  margin: 0;
+  padding: 6px 8px;
+  border-radius: 5px;
+  background: rgb(239 107 107 / 12%);
+  color: var(--failed);
+  font: 11px/1.4 ui-monospace, Menlo, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  -webkit-user-select: text;
+  user-select: text;
+  cursor: text;
+}

@@ -6,6 +6,7 @@ import type { RepoGroup } from "./groups";
 import { NewSessionBox, type Mode } from "./NewSessionBox";
 import type { TrustInfo } from "./pty";
 import { useAddedRepos } from "./repos";
+import { useRowActions } from "./rowActions";
 import { Sidebar } from "./Sidebar";
 import { TerminalPane, type PaneStatus } from "./TerminalPane";
 import { TrustPane } from "./TrustPane";
@@ -34,6 +35,7 @@ interface BoxFor {
 export default function App() {
   const sessions = useSessions();
   const repos = useAddedRepos();
+  const rowActions = useRowActions();
   // The group whose "+" prompt box is open; one box at a time.
   const [newIn, setNewIn] = useState<BoxFor | null>(null);
   // The start waiting on the trust pane; at most one.
@@ -144,6 +146,7 @@ export default function App() {
         onNewSession={newSession}
         trust={trust && { label: trust.label, selected: selected === TRUST }}
         onShowTrust={showTrust}
+        rowActions={rowActions}
       />
       <main className="pane-area">
         {open.map((id) => (

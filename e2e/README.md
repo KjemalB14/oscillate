@@ -37,8 +37,8 @@ when nothing changed.
   the fake answers and waits for the app to poll it; it never relaunches the app.
 - **`helpers/fake-claude.ts`** is a TS port of `src-tauri/src/testutil.rs`'s fake. The
   app runs its `claude` children with a clean environment, so the fake reads files
-  beside itself, never env vars. It answers five commands and logs each one (any other
-  arguments log `unexpected: …`):
+  beside itself, never env vars. It logs every command it answers (any other
+  arguments log `unexpected: …`). It answers seven:
   - `agents --json --all` prints the file `out` and logs `poll`.
   - `--bg …` logs `bg pid=<n> at=<ms> cwd=<dir> argv=<hex>,…`, every argument hex-encoded
     so quotes, `$`, backticks and newlines survive. Then it answers what
@@ -58,13 +58,27 @@ when nothing changed.
       sig=<NAME>`. SIGWINCH is left out, because a resize sends it. HUP, INT, QUIT, TERM,
       PIPE, ALRM, USR1 and USR2 then end it, as they would end the real one. Every exit
       is logged as `trust-exit pid=<n> how=<accepted|declined|signal-NAME|eof>`.
-  - `attach <id>` runs `tty.pl`, a Perl keylogger. It logs `attach <id> pid=<n>
+  - `attach <id>` runs `tty.pl`, a Perl keylogger. It logs `attach <id> pid=<n> at=<ms>
     cwd=<dir>` and turns on mouse and focus reports, as Claude's TUI does. Then it logs
     every byte it reads, as `keys <id> <pid> <hex>`.
+    - Every exit is logged as `attach-exit <id> pid=<n> at=<ms> how=<detach|eof|signal-NAME>`,
+      and a signal then ends it as before. Two exits leave no line: ←'s exec (agent view
+      logs `agents-exit` instead) and a SIGKILL. Its read waits in a 50ms `select`, as
+      `trust.pl`'s does, or the handlers would never run.
     - Ctrl+Z prints `[detached from <id>]`, logs `detach`, and exits 0.
     - ← logs `agents pid=<n>`, then execs `claude agents` **in the same pid**, as the
       real attach does (`NOTES.md`, *← is an `exec`*). The log comes first because
       the app can hang the pid up before agent view has run a line.
+  - `stop <id>` and `rm <id>` run `end.pl`. It logs `<stop|rm> pid=<n> at=<ms> cwd=<dir>
+    argv=<hex>,… attached=<pids>`, where `attached` is every live `attach <id>` pid (from
+    `ps`) at its start. Then it acts on the file `out` as the daemon would:
+    - `stop` turns a `working` or `blocked` entry into `stopped` and drops its `status`,
+      `pid` and `waitingFor`, as the real one did (Claude Code 2.1.285). A `done` entry
+      stays `done`. It prints `stopped <id>` and exits 0.
+    - `rm` answers what `fake.answerRm()` set. By default it prints `removed <id>`, exits
+      0 and drops the entry. With a non-zero exit it prints the refusal a real `rm` printed
+      **on stdout** (`fixtures/rm-refused-stdout.txt`, naming the id) and leaves the entry.
+    - An id `out` doesn't list fails with the real `No job matching` line, exit 1.
   - `agents` (agent view) repaints an 8KB screen every 10ms. It answers a hangup by
     writing 32KB before it exits, as the real one does, so it only exits if the app
     keeps reading the PTY after the hangup (`NOTES.md`, slice 3, *the reader stopped
@@ -77,7 +91,8 @@ when nothing changed.
   - `attachable(id, { repo?, name? })` is an entry for `show([...])` that the app can
     attach. Its `cwd` is a real directory, `fake.repo(repo)`. Ids are letters and
     digits only; the app refuses anything else.
-  - `fake.attaches(id?)`, `fake.agentViews()` and `fake.keys(id, pid?)` read the log.
+  - `fake.attaches(id?)` (with each start time `at`), `fake.attachExits(id?)`,
+    `fake.agentViews()` and `fake.keys(id, pid?)` read the log.
     `fake.running()` reads `ps`: the live `attach` pids by session id, and the live
     agent-view pids.
   - `fake.answerBg({ id, stdout?, stderr?, exit?, delayMs? })` sets the next `--bg`
@@ -88,6 +103,15 @@ when nothing changed.
     `fake.trusts()` reads back every trust `claude` (`{ pid, at, cwd, argv }`, with
     `argv` empty when it got no arguments). `fake.trustSignals(pid?)` and
     `fake.trustExits()` read the rest, and `fake.running().trust` lists the live ones.
+  - `fake.answerRm({ stdout?, stderr?, exit? })` sets what every later `rm` answers;
+    `fake.answerRm()` puts back the default. `fake.rmRefusal(id)` is the exact refusal
+    text the fake prints for `id`. `fake.stops()` and `fake.rms()` read back each one:
+    `{ pid, at, cwd, argv, attached }`.
+  - `fake.argvs()` is every argv the fake was run with, as far as its log shows (polls,
+    attaches, `--bg`, trust, `stop`, `rm`, and anything unexpected as one string).
+  - `rightClick(el)` right-clicks as WebKit does: `mousedown`, `contextmenu`, `mouseup`,
+    button 2, at the element's center. **Don't use `click({ button: "right" })`:** this
+    driver sends only the `mousedown` and `mouseup`, so no context menu ever opens.
   - `fake.pick(dir | null)` answers the app's next "Add repo…" folder picker (`null`
     cancels). The e2e build reads it instead of opening the native dialog.
     `fake.reposJson()` reads the app's `repos.json` (`null` if there's none).
@@ -116,7 +140,9 @@ when nothing changed.
 - **State that outlives a spec.** `repos.json` is kept in the run's temp data dir for
   the whole run, and `relaunch()` keeps it. A spec that adds a repo must remove it
   before it ends: `sidebar-rows.spec.ts` expects no groups at all under `empty`. The
-  same goes for the untrusted list (`fake.trust()` what you `untrust()`).
+  same goes for the untrusted list (`fake.trust()` what you `untrust()`), and for
+  `fake.answerRm()`: a spec that makes `rm` refuse must call `fake.answerRm()` before it
+  ends.
   - **A trust pane left open blocks quitting**, and `relaunch()`'s SIGTERM would hang
     up its `claude`. A spec that opens one must answer it before it ends. After
   `relaunch()`, everything the app kept only in memory is gone, such as sort keys and
@@ -132,3 +158,6 @@ when nothing changed.
     terminal-tab entries (a copy of the Rust fixture).
   - `deep-collision.json`: `a/x/repo` vs `b/x/repo`.
   - `empty.json`.
+- The other `fixtures/` are real `claude` output the fake answers with: `bg-stdout.txt`,
+  `bg-untrusted-stderr.txt`, and `rm-refused-stdout.txt` (Claude Code 2.1.285, against a
+  throwaway session whose worktree had a commit on no remote).

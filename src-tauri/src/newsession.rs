@@ -12,15 +12,12 @@
 //! and accept the trust prompt, then retry.` (`fixtures/bg/untrusted-2.1.284.txt`). That
 //! error is the only trust signal the app reads; it never looks at the trust flag.
 
-use std::io::Read;
 use std::path::Path;
-use std::process::{Command, Stdio};
-use std::thread;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use serde::Serialize;
 
-use crate::claude::{child_env, Resolver};
+use crate::claude::{run_once, Resolver};
 
 /// What `--bg` says when the folder isn't trusted; the start of its stderr.
 const UNTRUSTED: &str = "Workspace not trusted";
@@ -119,52 +116,12 @@ pub fn start(resolver: &Resolver, cwd: &str, mode: Option<&str>, prompt: &str) -
     if !Path::new(cwd).is_dir() {
         return Err(format!("{cwd} no longer exists.").into());
     }
-    let claude = resolver.get()?;
-    let mut child = Command::new(&claude.path)
-        .args(&args)
-        .env_clear()
-        .envs(child_env(&claude))
-        .current_dir(cwd)
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|e| format!("couldn't run {}: {e}", claude.path.display()))?;
-    let read_all = |mut r: Box<dyn Read + Send>| {
-        thread::spawn(move || {
-            let mut out = Vec::new();
-            let _ = r.read_to_end(&mut out);
-            String::from_utf8_lossy(&out).into_owned()
-        })
-    };
-    let stdout = read_all(Box::new(child.stdout.take().unwrap()));
-    let stderr = read_all(Box::new(child.stderr.take().unwrap()));
-    let deadline = Instant::now() + TIMEOUT;
-    let status = loop {
-        match child.try_wait().map_err(|e| e.to_string())? {
-            Some(status) => break status,
-            None if Instant::now() >= deadline => {
-                let _ = child.kill();
-                let _ = child.wait();
-                return Err(format!("`claude --bg` didn't answer in {}s.", TIMEOUT.as_secs()).into());
-            }
-            None => thread::sleep(Duration::from_millis(20)),
-        }
-    };
-    let (stdout, stderr) = (stdout.join().unwrap(), stderr.join().unwrap());
-    if !status.success() {
-        let untrusted = is_untrusted(&stderr);
-        let mut shown = if stderr.trim().is_empty() { String::new() } else { stderr };
-        if !stdout.trim().is_empty() {
-            if !shown.is_empty() && !shown.ends_with('\n') {
-                shown.push('\n');
-            }
-            shown.push_str(&stdout);
-        }
-        let message = if shown.is_empty() { format!("`claude --bg` {status}") } else { shown };
-        return Err(StartError { untrusted, message });
+    let ran = run_once(resolver, &args, cwd, TIMEOUT)?;
+    if !ran.status.success() {
+        return Err(StartError { untrusted: is_untrusted(&ran.stderr), message: ran.shown() });
     }
-    parse_id(&stdout).ok_or_else(|| format!("`claude --bg` printed no session id:\n{stdout}{stderr}").into())
+    parse_id(&ran.stdout)
+        .ok_or_else(|| format!("`claude --bg` printed no session id:\n{}{}", ran.stdout, ran.stderr).into())
 }
 
 #[cfg(test)]
