@@ -32,10 +32,9 @@ Both slices shipped (below). The results and the verdict are in `NOTES.md`.
 
 All four slices shipped (below). The results are in `NOTES.md`.
 
-### Chapter 3 — Start and end sessions from the app: open
+### Chapter 3 — Start and end sessions from the app: closed 2026-09-30
 
-Decided 2026-09-28. The decisions, rejections and acceptance criteria are in
-`PLAN-new-sessions.md`.
+All four slices shipped (below). The results are in `NOTES.md` → *Chapter 3 closed*.
 
 - [x] **1. Rows stay still.** Shipped 2026-09-28 (below).
 - [x] **2. New session.** Shipped 2026-09-28 (below). Item 12 passed by hand after the
@@ -49,8 +48,8 @@ Decided 2026-09-28. The decisions, rejections and acceptance criteria are in
   - An untrusted repo opens a pane running interactive `claude` so you can accept
     trust. When it exits, the app retries once with the prompt it kept.
   - The app never kills that process, and refuses Cmd+Q while it runs.
-- [x] **4. Stop and remove.** Shipped 2026-09-30 (below). Item 22 (by hand) is still
-  open.
+- [x] **4. Stop and remove.** Shipped 2026-09-30 (below). Item 22 passed by hand after
+  the merge.
   - A context menu runs `claude stop` or `claude rm` after closing the PTY. Only Remove
     asks for confirmation. An `rm` refusal is shown verbatim, with no
     `--discard-unpushed`.
@@ -87,6 +86,13 @@ Decided 2026-09-28. The decisions, rejections and acceptance criteria are in
   change after `/exit` and typed it again. The repeat landed in the new session and
   detached it (`NOTES.md`, *Chapter 3, slice 3*). Time the gap first; then consider
   showing "Starting…" once the trust `claude` exits.
+- [ ] **Dock → Quit and logout still end the app while a trust pane is open.** They send
+  `terminate:`, which the app's own Quit item doesn't see, so the trust `claude` gets the
+  kernel's hangup (`NOTES.md`, *Chapter 3, slice 3*).
+- [ ] **An added repo whose folder is gone.** `Repos::load` keeps every stored path, so a
+  deleted folder stays a group with a "+". Item 17's temp repo is still in the installed
+  app's `repos.json`, and macOS will clean `$TMPDIR` under it (`NOTES.md`, *Chapter 3,
+  item 22 passed*). Decide first: drop it, dim it, or refuse its "+".
 - [ ] **Move `@xterm/*` from the 6.1.0 betas to 6.1.0 stable** once it ships. The
   betas are pinned exactly for the kitty keyboard protocol (`NOTES.md`, chapter 1
   slice 2).
@@ -113,12 +119,17 @@ gate on merge instead of push. See `NOTES.md` → *Chapter 2 closed*.)
   offers Stop while live and Remove always. Only Remove confirms. Either one runs only
   after the row's attach has been reaped, and an `rm` refusal is shown verbatim. Items
   18–21 pass under `npm run e2e`, and all 14 breaks turned red. Item 22 (by hand, release
-  app) is still open. The results are in `NOTES.md`.
+  app) passed after the merge. The results are in `NOTES.md`.
+- 2026-09-28: chapter 3, slice 3: the trust pane. `--bg`'s `Workspace not trusted` opens
+  an interactive `claude` in that repo, which the app never signals, and its exit makes
+  the box retry once. Quit and window close are refused while it runs. Items 13–16 pass
+  under `npm run e2e`, and item 17 (by hand, release app) passed after the merge. The
+  results are in `NOTES.md`.
 - 2026-09-28: chapter 3, slice 2: a new session from the app. "+" on a repo group runs
   `claude --bg` with the prompt and mode, then selects and attaches the new session.
   "Add repo…" and "Remove from list" keep the app's own `repos.json`. Items 5–11 pass
   under `npm run e2e`, each claim proved red by a break. Item 12 (by hand, release app)
-  is still open. The results are in `NOTES.md`.
+  passed after the merge. The results are in `NOTES.md`.
 - 2026-09-28: chapter 3, slice 1: rows stay still. Each row keeps the `startedAt` the
   app first saw for its key, for the life of the app process, and a webview reload
   keeps the order. Items 1–4 pass under `npm run e2e`, each proved red by a break. The

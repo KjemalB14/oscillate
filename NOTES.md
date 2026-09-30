@@ -9,6 +9,79 @@ Newest entries at the top.
 
 ---
 
+## 2026-09-30 — Chapter 3 closed: start and end sessions from the app
+
+All four slices shipped, and all 22 items passed: 1–11, 13–16 and 18–21 under
+`npm run e2e`, each proved red by a break, and 12, 17 and 22 by hand in the release app.
+The app now starts a session in a repo, walks you through workspace trust, and stops and
+removes sessions, without leaving the window. `PLAN-new-sessions.md` was deleted with
+this entry. Its full text (the question, what was chosen and rejected, the acceptance
+criteria) is at commit `9b1a7ce`: `git show 9b1a7ce:PLAN-new-sessions.md`. The code comments and
+specs that cite it resolve there, as chapter 2's do. The decisions that outlive the
+chapter:
+
+- **Rows keep the `startedAt` the app first saw, for the life of the app process.**
+  `startedAt` is the current process's start, so a respawn used to move a row under the
+  pointer. **Rejected:** rows by name (Claude renames a new session after its first
+  turn), by id (meaningless order), by live `startedAt` (the bug), and by `state.json`'s
+  `createdAt` (breaks invariant 2).
+- **"+" takes a prompt and a permission mode, and runs `claude --bg` as argv, no shell.**
+  **Rejected:** prompt only (plan mode would mean going back to the terminal), and a name
+  field (Claude names sessions itself).
+- **Only added repos outlive their sessions,** in the app's own `repos.json`, with
+  "Remove from list". **Rejected:** remembering every repo ever seen (old experiments
+  pile up), and no way to leave the list.
+- **Trust: the author accepts in an interactive `claude` the app never signals, and its
+  exit triggers exactly one retry.** **Rejected:** polling `--bg` and killing the pane on
+  success (a kill on an inference, at a trust prompt), reading the REPL's output (breaks
+  across versions), and running the prompt in the trust `claude` (breaks invariant 1).
+- **Stop and Remove wait for the attach's reap in Rust, and only Remove confirms.**
+  **Rejected:** confirming both (Stop is undone by an attach), confirming neither (a
+  clean `rm` deletes with no refusal), and any button that passes `--discard-unpushed`.
+- **Hand checks can't come from a `claude --bg` job's hands.** Three of them (items 12,
+  17, 22) needed Apple Events. The pattern that worked: the author clicks, and the job
+  checks every step against `claude agents --json --all` and the app's child processes.
+
+What the chapter left unproved:
+- **The reload test flakes** in full runs (`BACKLOG.md` → *Later*).
+- **Dock → Quit and logout during a trust pane** still end the app (`BACKLOG.md`).
+- **An added repo whose folder is gone** stays a group with a "+", and item 17's temp
+  repo is one (`BACKLOG.md`).
+- **`/exit` in the trust pane gives no sign it was taken** (`BACKLOG.md`).
+- No spec covers the trust pane's reload rebind or a keyboard-opened row menu. How fast a
+  real `claude attach` exits on a hangup is modelled (600ms), not measured. `rm`'s
+  `--force-remove-worktree` refusal was never produced. The permission mode was never
+  seen in a real daemon's process args.
+
+---
+
+## 2026-09-30 — Chapter 3, item 22 passed
+
+Run from a `claude --bg` job again (7787b9c5), so `drive-window` still failed with
+`-1743`. The author was at the laptop and clicked; this session checked each step
+against `claude agents --json --all` (Claude Code 2.1.286) and the installed app's child
+processes (`pgrep -P <app pid>`). The app was the slice-4 build in `/Applications`, not
+rebuilt.
+
+- **Start.** "+" with mode `plan` and "Read every file in src-tauri/src and summarize
+  each one". The daemon listed `04d29813` ("summarize tauri src files"), `working`, and
+  the app's only child was `claude attach 04d29813`.
+  - **It started in the wrong group.** Its `cwd` was `tmp.ergPPXxr2Q`, the temp repo from
+    item 17's hand check (2026-09-28), which is still an added repo in the installed
+    app's `repos.json`. Its group sorts right after `oscillate`. That didn't matter for
+    item 22: any real throwaway session from the app will do. The session found no
+    `src-tauri/src` and asked a question, so it was `blocked` (needs you) at Stop time,
+    which still counts as live.
+- **Stop.** Right-click → Stop. The daemon listed `04d29813` as `stopped`, no process
+  named it, and the app had no attach child. The row showed the solid grey stopped dot,
+  and the pane said "Detached — click to reattach".
+- **Remove.** Right-click → Remove → confirm. The row went, and `04d29813` was gone from
+  `agents --json --all`. The other four sessions were unchanged throughout.
+- **Not checked:** the exact `stop`/`rm` argv the app ran. The e2e fake pins it (items
+  19–21), and real `claude` doesn't log it.
+
+---
+
 ## 2026-09-30 — zeron, a reference project
 
 The author found [zeronsh/zeron](https://github.com/zeronsh/zeron) (MIT, Rust, ~2.5k stars,
