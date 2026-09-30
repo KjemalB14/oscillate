@@ -73,39 +73,34 @@ and what it didn't prove are in `NOTES.md` → *Chapter 2 closed*.
   its icon drawn in `src-tauri/icons/app-icon.svg`. Launched from Finder, it finds
   `claude` through the login shell. Daily use and feedback start here.
 
-**Chapter 3, start and end sessions from the app, is open** (decided 2026-09-28).
-`PLAN-new-sessions.md` holds its decisions and acceptance criteria, in four slices:
-frozen row order, "+" and "Add repo…", the trust pane, then Stop and Remove.
-- **Slice 1 has shipped:** rows sort by `sortKey`, the `startedAt` the app first saw for
-  each key (`sessions::FirstSeen`, applied by the poll thread).
-- **Slice 2 has shipped**, and item 12 passed by hand in the reinstalled app.
-  - "+" opens `src/NewSessionBox.tsx`: `newsession.rs` runs `claude --bg`, then the
-    new id is selected once it's listed.
-  - "Add repo…" and "Remove from list" keep `repos.json` in the app data dir
-    (`repos.rs`; `OSCILLATE_DATA_DIR` in e2e).
-  - The fake answers `--bg` with real captured bytes, and `relaunch()` restarts the
-    app mid-spec (`e2e/README.md`).
-- **Slice 3 has shipped**, and item 17 passed by hand in the reinstalled app.
-  - `--bg`'s `Workspace not trusted` opens `src/TrustPane.tsx`: interactive `claude` in
-    that `cwd`, outside the pool. Its exit makes the box retry once.
+**Chapter 3, *Start and end sessions from the app*, is closed** (2026-09-30). Its
+decisions and what it didn't prove are in `NOTES.md` → *Chapter 3 closed*.
+- Rows sort by `sortKey`, the `startedAt` the app first saw for each key
+  (`sessions::FirstSeen`, applied by the poll thread), so they never move while it runs.
+- "+" on a group opens `src/NewSessionBox.tsx`: `newsession.rs` runs `claude --bg` with
+  the prompt and mode, then selects the new id once it's listed. "Add repo…" and "Remove
+  from list" keep `repos.json` in the app data dir (`repos.rs`; `OSCILLATE_DATA_DIR` in
+  e2e).
+- `--bg`'s `Workspace not trusted` opens `src/TrustPane.tsx`: interactive `claude` in
+  that `cwd`, outside the pool. Its exit makes the box retry once.
   - **The app never signals the trust `claude`.** `pty.rs` refuses it in
     `Pty::close_with`, and it keeps the pane across a reload. Quit, the Quit menu item
     and window close are refused while it runs. The Quit item is the app's own, because
     the stock one can't be refused.
-  - The fake models per-directory trust and a trust prompt that logs every signal
-    (`e2e/README.md`).
-- **Slice 4 has shipped; item 22 (by hand) is still open.**
-  - A right-click on a background row opens `Sidebar.tsx`'s menu: Stop while live,
-    Remove always. Remove asks in one line under the row (`src/rowActions.ts`).
-  - `end_session` (`lib.rs`, `endsession.rs`) closes the row's attach through
-    `pty::end_attaches` and waits for its reap. Only then does it run exactly
-    `claude stop|rm <id>`, and no attach is admitted until that returns.
-  - An `rm` refusal (stdout, exit 1) shows verbatim under the row. The fake answers
-    `stop` and `rm`, logs attach exits, and `rightClick()` sends the `contextmenu` this
-    driver doesn't (`e2e/README.md`).
-  - **The slice-4 app is installed** in `/Applications` (2026-09-30).
-  - Next: item 22 in that app, from an **interactive** session or by the author, then
-    close chapter 3 (`NOTES.md`, *Chapter 3, item 22*).
+- A right-click on a background row opens `Sidebar.tsx`'s menu: Stop while live, Remove
+  always, and only Remove confirms (`src/rowActions.ts`). `end_session` (`lib.rs`,
+  `endsession.rs`) closes the row's attach through `pty::end_attaches` and waits for its
+  reap. Only then does it run exactly `claude stop|rm <id>`, and no attach is admitted
+  until that returns. An `rm` refusal shows verbatim under the row.
+- The fake answers `--bg`, `stop` and `rm` with real captured bytes, models per-directory
+  trust, and logs signals and attach exits. `relaunch()` and `rightClick()` are harness
+  helpers (`e2e/README.md`).
+- **The slice-4 app is installed** in `/Applications` (2026-09-30), and every hand check
+  (items 12, 17, 22) passed in a release build.
+
+**Next: chapter 4, *It tells you when it needs you*** (`BACKLOG.md`). It isn't open.
+Open it with `/decide`, which should read `NOTES.md` → *zeron, a reference project*
+first.
 
 - Dev: `npm run tauri dev`. Release binary: `npx tauri build --no-bundle`.
 - Install: quit the app, then `npx tauri build` and `ditto
