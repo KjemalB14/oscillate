@@ -129,7 +129,13 @@ criteria, in two slices: notifications and the Dock badge, then the PR link.
   downgrade to 6.0: Esc Esc stops working in Claude.
 - Rust lives in `~/.cargo/bin`.
 - Claude can drive the window itself with `~/.claude/scripts/drive-window` (`--help`),
-  but not from a `claude --bg` job, which isn't allowed to send Apple Events.
+  but not from a `claude --bg` job. That job isn't allowed to send Apple Events or
+  capture the screen.
+  - **Run hand checks in a foreground `claude` in Ghostty.** Ghostty needs
+    Accessibility, Screen & System Audio Recording, and Automation → System Events.
+    The rest of a slice can stay in the background.
+  - Clicking a real notification banner stays the author's job. Everything around it
+    is checked from the app's stderr log and the process list.
 
 ## The invariants
 
