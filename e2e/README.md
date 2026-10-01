@@ -134,6 +134,16 @@ when nothing changed.
   - `tapNotification(id)` and `dismissNotification(id)` run the notification delegate's
     own handler through an e2e-only command, as a tap or a dismissal on a real banner
     would.
+  - `fake.job(id, content)` writes `<watched>/jobs/<id>/state.json`, which the app reads
+    PR links from. `content` is an object or raw text, and `null` removes the job. The
+    write wakes the app's poll, as a real job's does. `fake.prState([42, 43])` builds one
+    naming those PRs, oldest first, the way Claude Code writes `children[]`.
+    - **Remove every job you write before the spec ends:** later specs compare the
+      watched tree with the baseline.
+    - `fake.claudeDirExpected()` is the baseline plus the jobs `job()` has written. Compare
+      `claudeDirTree()` with it while jobs are in place.
+  - `fake.opened()` lists every link the app sent to the opener, in order. The e2e build
+    logs them (`OSCILLATE_E2E_OPEN_LOG`) instead of opening a browser.
   - `fake.claudeDirTree()` hashes every path under the watched Claude dir, except the
     file `touch()` rewrites. `fake.claudeDirBaseline()` is that tree from before the app
     launched.

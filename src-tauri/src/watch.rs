@@ -66,7 +66,7 @@ mod tests {
         let (tx, rx) = mpsc::channel();
         let watcher = watch(&[sessions.clone(), home.path().join("missing")], tx).unwrap();
         let cfg = PollConfig { interval: Duration::from_secs(60), ..Default::default() };
-        let poller = Poller::start(fake.resolver(), cfg, rx, |_| {});
+        let poller = Poller::start(fake.resolver(), cfg, rx, None, |_| {});
         fake.wait_for_starts(1, Duration::from_secs(2)).unwrap();
         // Let FSEvents deliver anything left over from creating the dir.
         std::thread::sleep(Duration::from_millis(500));

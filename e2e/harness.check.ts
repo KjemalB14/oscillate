@@ -4,8 +4,8 @@
  * again on a touch in the temp watched directory. Then that the fake `attach` logs its cwd
  * and its keys, and that `fake.running()` sees it. Then chapter 3's pieces: the fake
  * `--bg`, the folder-picker hook, `relaunch()`, the fake `stop` and `rm`, and that this
- * driver can right-click. Then chapter 4's: the notify log, the focus file, and a
- * notification tap.
+ * driver can right-click. Then chapter 4's: the notify log, the focus file, a
+ * notification tap, a job's PR chip, and the opener log.
  */
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -145,9 +145,11 @@ describe("harness: notifications", () => {
     await show([working]);
     const from = fake.notifications().length;
     await show([{ ...working, state: "blocked", status: "waiting", waitingFor: "approve Bash" }]);
-    await browser.waitUntil(() => fake.notifications().slice(from).some((n) => n.op === "post"), {
-      timeoutMsg: "no post logged",
-    });
+    // The badge line follows the post, from the same poll.
+    await browser.waitUntil(
+      () => fake.notifications().slice(from).some((n) => n.op === "badge" && n.count === 1),
+      { timeoutMsg: "no post and badge logged" },
+    );
     expect(fake.notifications().slice(from)).toContainEqual(
       expect.objectContaining({ op: "post", id: "hnote1", body: "approve Bash", subtitle: "hcheck-note" }),
     );
@@ -166,5 +168,22 @@ describe("harness: notifications", () => {
     fake.focus("background");
     expect(readFileSync(join(fake.dir, "focus"), "utf8")).toBe("background");
     fake.focus("key");
+  });
+});
+
+describe("harness: PR links", () => {
+  it("fake.job() writes a state.json the app reads, and a chip click reaches the opener log", async () => {
+    const session = attachable("hpr1", { repo: "hcheck-pr" });
+    fake.job("hpr1", fake.prState([7, 8]));
+    await show([session]);
+    await $('button[aria-label="PR #8"]').waitForExist({ timeoutMsg: "no chip" });
+    const before = fake.opened().length;
+    await $('button[aria-label="PR #8"]').click();
+    await browser.waitUntil(() => fake.opened().length > before, { timeoutMsg: "nothing opened" });
+    expect(fake.opened().slice(before)).toEqual(["https://github.com/example/repo/pull/8"]);
+    expect(fake.claudeDirTree()).toEqual(fake.claudeDirExpected());
+    fake.job("hpr1", null);
+    await show("all-states");
+    expect(fake.claudeDirTree()).toEqual(fake.claudeDirBaseline());
   });
 });

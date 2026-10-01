@@ -47,6 +47,7 @@ import {
   readdirSync,
   readFileSync,
   realpathSync,
+  rmSync,
   statSync,
   writeFileSync,
 } from "node:fs";
@@ -110,6 +111,7 @@ export class FakeClaude {
       OSCILLATE_E2E_PICK: join(this.dir, "pick"),
       OSCILLATE_E2E_NOTIFY_LOG: join(this.dir, "notify.log"),
       OSCILLATE_E2E_FOCUS: join(this.dir, "focus"),
+      OSCILLATE_E2E_OPEN_LOG: join(this.dir, "opened.log"),
     };
   }
 
@@ -151,6 +153,8 @@ exit 2
     this.pick(null);
     this.focus("key");
     writeFileSync(join(this.dir, "notify.log"), "");
+    writeFileSync(join(this.dir, "opened.log"), "");
+    writeFileSync(join(this.dir, "jobs-written.json"), "{}");
     writeFileSync(join(this.dir, "claude-dir-baseline.json"), JSON.stringify(this.claudeDirTree()));
   }
 
@@ -364,6 +368,59 @@ exit 2
       }
     };
     walk("");
+    return tree;
+  }
+
+  /**
+   * Writes the job `state.json` the app reads PR links from:
+   * `<watched>/jobs/<id>/state.json`, which wakes the app's poll as a real one does.
+   * `content` is an object (written as JSON) or raw text (for broken files), and `null`
+   * removes the job's directory. A spec that writes jobs removes them before it ends:
+   * `claudeDirTree()` comparisons later in the run expect them gone.
+   */
+  job(id: string, content: object | string | null) {
+    const dir = join(this.claudeDir, "jobs", id);
+    const written = JSON.parse(readFileSync(join(this.dir, "jobs-written.json"), "utf8")) as Record<string, string>;
+    if (content === null) {
+      rmSync(dir, { recursive: true, force: true });
+      delete written[id];
+    } else {
+      mkdirSync(dir, { recursive: true });
+      const text = typeof content === "string" ? content : JSON.stringify(content);
+      writeFileSync(join(dir, "state.json"), text);
+      written[id] = createHash("sha256").update(text).digest("hex");
+    }
+    writeFileSync(join(this.dir, "jobs-written.json"), JSON.stringify(written));
+  }
+
+  /**
+   * A job `state.json` naming PRs, as Claude Code writes one: `children[]` entries
+   * `{ id: "<n>", href, kind: "pr" }`, oldest first. `href` defaults to
+   * `https://github.com/example/repo/pull/<n>`.
+   */
+  prState(numbers: number[], href = (n: number) => `https://github.com/example/repo/pull/${n}`): object {
+    return {
+      state: "done",
+      children: numbers.map((n) => ({ id: String(n), href: href(n), kind: "pr" })),
+    };
+  }
+
+  /** Every link the app sent to the opener, in order (the e2e build logs instead of opening). */
+  opened(): string[] {
+    return readFileSync(join(this.dir, "opened.log"), "utf8").split("\n").filter(Boolean);
+  }
+
+  /**
+   * `claudeDirBaseline()` plus every job file `job()` has written and not removed: what
+   * `claudeDirTree()` is when the app has written nothing.
+   */
+  claudeDirExpected(): Record<string, string> {
+    const tree = this.claudeDirBaseline();
+    const written = JSON.parse(readFileSync(join(this.dir, "jobs-written.json"), "utf8")) as Record<string, string>;
+    for (const [id, hash] of Object.entries(written)) {
+      tree[join("jobs", id)] = "dir";
+      tree[join("jobs", id, "state.json")] = hash;
+    }
     return tree;
   }
 

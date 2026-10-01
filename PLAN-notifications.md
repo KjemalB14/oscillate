@@ -221,3 +221,22 @@ afterwards. Results go in `NOTES.md`.
 - **Harness:** `OSCILLATE_E2E_NOTIFY_LOG` and `OSCILLATE_E2E_FOCUS`, plus
   `fake.notifications()`, `fake.focus()`, `tapNotification()` and
   `dismissNotification()` (`e2e/README.md`).
+
+## Implementation, slice 2
+
+- **`src-tauri/src/pr_links.rs`:**
+  - `parse`/`read` turn a `state.json` into PRs, oldest first, plus its misses: no file,
+    unreadable, not JSON, no `children`, or a bad PR child (no id, or an href that isn't
+    `https://`).
+  - `PrLinks::attach` sets `Session.prs` on every listed id each poll, and logs each
+    (session, miss) once. Ids that aren't letters and digits never become a path.
+  - The poller runs it after `FirstSeen`, so a PR that appears or goes is a change.
+- **`open_pr(href)`:** opens only an `https://` href that a listed session names, through
+  the opener plugin. In e2e builds it's appended to `OSCILLATE_E2E_OPEN_LOG` instead.
+- **`src/Sidebar.tsx`:**
+  - `PrChips` shows `#N` for the newest PR and `+k` for the rest.
+  - `PrMenu` lists the others newest first. It shares `FloatingMenu` with the row's
+    context menu.
+  - Clicks and keys on the chips never select the row.
+- **Harness:** `fake.job()`, `fake.prState()`, `fake.opened()` and
+  `fake.claudeDirExpected()` (`e2e/README.md`).
