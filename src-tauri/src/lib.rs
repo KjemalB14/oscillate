@@ -4,6 +4,7 @@ mod endsession;
 mod newsession;
 mod notifications;
 mod poll;
+mod pr_links;
 mod pty;
 mod repos;
 mod sessions;
@@ -144,6 +145,28 @@ fn e2e_notification_response(app: AppHandle, id: String, action: String) -> Resu
     Ok(())
 }
 
+/// A PR chip's click: opens `href` in the default browser. Only an `https://` link that a
+/// listed session names is opened. In e2e builds, `OSCILLATE_E2E_OPEN_LOG` names a file
+/// it's appended to instead.
+#[tauri::command]
+fn open_pr(app: AppHandle, model: State<'_, SessionModel>, href: String) -> Result<(), String> {
+    let listed = model
+        .poller
+        .snapshot()
+        .is_some_and(|list| list.iter().any(|s| s.prs.iter().any(|p| p.href == href)));
+    if !href.starts_with("https://") || !listed {
+        return Err(format!("not a listed PR link: {href}"));
+    }
+    #[cfg(feature = "e2e")]
+    if let Some(log) = std::env::var_os("OSCILLATE_E2E_OPEN_LOG").filter(|l| !l.is_empty()) {
+        use std::io::Write;
+        let mut file = std::fs::OpenOptions::new().create(true).append(true).open(log).map_err(|e| e.to_string())?;
+        return writeln!(file, "{href}").map_err(|e| e.to_string());
+    }
+    use tauri_plugin_opener::OpenerExt;
+    app.opener().open_url(href, None::<&str>).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 fn repos_list(repos: State<'_, repos::Repos>) -> Vec<String> {
     repos.list()
@@ -196,7 +219,8 @@ pub fn run() {
             let poll_now = tx.clone();
             let watcher = watch::watch(&[claude_dir.join("sessions"), claude_dir.join("jobs")], tx);
             let handle = app.handle().clone();
-            let poller = poll::Poller::start(resolver, Default::default(), rx, move |list| {
+            let pr_links = pr_links::PrLinks::new(claude_dir.join("jobs"));
+            let poller = poll::Poller::start(resolver, Default::default(), rx, Some(pr_links), move |list| {
                 pty::close_unlisted(&handle.state::<pty::Ptys>(), list);
                 let _ = handle.emit("sessions-changed", list);
                 let added = handle.state::<repos::Repos>().list();
@@ -234,6 +258,7 @@ pub fn run() {
             repos_add,
             repos_remove,
             set_visible_session,
+            open_pr,
             e2e_notification_response,
             pty::pty_spawn,
             pty::pty_write,

@@ -165,7 +165,7 @@ body,
 
 .session {
   display: grid;
-  grid-template-columns: 8px 1fr;
+  grid-template-columns: 8px 1fr auto;
   column-gap: 9px;
   align-items: center;
   padding: 5px 8px 5px 18px;
@@ -187,12 +187,36 @@ body,
 }
 
 .session .detail {
-  grid-column: 2;
+  grid-column: 2 / span 2;
   color: var(--muted);
   font-size: 12px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* PR links: the newest as `#N`, then `+k` for the rest. */
+.prs {
+  display: flex;
+  gap: 3px;
+  margin-left: 6px;
+}
+
+.pr {
+  padding: 0 5px;
+  border: 1px solid var(--hairline);
+  border-radius: 4px;
+  background: none;
+  color: var(--muted);
+  font: 500 11px/16px -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
+.pr:hover,
+.pr:focus-visible {
+  border-color: var(--focus);
+  color: var(--text);
+  outline: none;
 }
 
 /* State dots: filled for a state, hollow for paused, dashed for one this build can't name. */

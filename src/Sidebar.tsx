@@ -1,7 +1,15 @@
-import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+  type ReactNode,
+} from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { groupSessions, type RepoGroup } from "./groups";
 import { STOPPABLE, type RowAction, type RowActions } from "./rowActions";
-import type { Session, UiState } from "./sessions";
+import type { Pr, Session, UiState } from "./sessions";
 
 /** The words for each state: the dot's accessible name and its tooltip. */
 const STATE_WORDS: Record<UiState, string> = {
@@ -19,6 +27,43 @@ function stateWords(s: Session): string {
   return s.state === "unknown" && s.rawState ? `unknown (${s.rawState})` : STATE_WORDS[s.state];
 }
 
+/** Opens a PR in the default browser; Rust opens only links a listed session names. */
+function openPr(pr: Pr) {
+  invoke("open_pr", { href: pr.href }).catch((e) => console.error("open_pr:", e));
+}
+
+/**
+ * A row's PR links: the newest as `#N`, then `+k` for the rest, which opens a menu of
+ * them, newest first. Clicks and keys here never select the row.
+ */
+function PrChips({ prs, name, onMore }: { prs: Pr[]; name: string; onMore: (e: ReactMouseEvent<HTMLButtonElement>) => void }) {
+  if (prs.length === 0) return null;
+  const newest = prs[prs.length - 1];
+  const rest = prs.length - 1;
+  const own = (act: (e: ReactMouseEvent<HTMLButtonElement>) => void) => (e: ReactMouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    act(e);
+  };
+  return (
+    <span className="prs" onKeyDown={(e) => e.stopPropagation()}>
+      <button className="pr" aria-label={`PR #${newest.number}`} title={newest.href} onClick={own(() => openPr(newest))}>
+        #{newest.number}
+      </button>
+      {rest > 0 && (
+        <button
+          className="pr pr-more"
+          aria-label={`${rest} more PRs from ${name}`}
+          aria-haspopup="menu"
+          title={`${rest} more PRs`}
+          onClick={own(onMore)}
+        >
+          +{rest}
+        </button>
+      )}
+    </span>
+  );
+}
+
 interface RowProps {
   session: Session;
   selected: boolean;
@@ -29,9 +74,11 @@ interface RowProps {
   onMenu: (session: Session, e: ReactMouseEvent<HTMLLIElement>) => void;
   onConfirmRemove: (id: string) => void;
   onDismiss: (id: string) => void;
+  /** `+k`: opens the menu of the row's older PRs. */
+  onMorePrs: (session: Session, e: ReactMouseEvent<HTMLButtonElement>) => void;
 }
 
-function SessionRow({ session, selected, onSelect, action, onMenu, onConfirmRemove, onDismiss }: RowProps) {
+function SessionRow({ session, selected, onSelect, action, onMenu, onConfirmRemove, onDismiss, onMorePrs }: RowProps) {
   const terminalTab = session.state === "terminal-tab";
   const running = action?.kind === "running" ? (action.end === "stop" ? "Stopping…" : "Removing…") : null;
   const detail = terminalTab ? "run /bg to open here" : running ?? session.waitingFor;
@@ -57,6 +104,7 @@ function SessionRow({ session, selected, onSelect, action, onMenu, onConfirmRemo
       >
         <span className="dot" role="img" aria-label={stateWords(session)} title={stateWords(session)} />
         <span className="name">{name}</span>
+        <PrChips prs={session.prs ?? []} name={name} onMore={(e) => onMorePrs(session, e)} />
         {detail && <span className="detail">{detail}</span>}
       </li>
       {id && action?.kind === "confirm" && (
@@ -97,26 +145,26 @@ interface MenuAt {
 }
 
 /**
- * A row's context menu: Stop while the session is live, Remove always. It closes on a
- * choice, Escape, a click elsewhere, or the window losing focus.
+ * A small menu at a point, kept inside the window as a native menu is. It focuses its
+ * first item, and closes on Escape, a click elsewhere, or the window losing focus.
  */
-function RowMenu({ at, onStop, onRemove, onClose }: {
-  at: MenuAt;
-  onStop: (id: string) => void;
-  onRemove: (id: string) => void;
+function FloatingMenu({ x, y, label, onClose, children }: {
+  x: number;
+  y: number;
+  label: string;
   onClose: () => void;
+  children: ReactNode;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState({ left: at.x, top: at.y });
+  const [pos, setPos] = useState({ left: x, top: y });
 
-  // Kept inside the window, as a native menu is.
   useLayoutEffect(() => {
     const r = ref.current!.getBoundingClientRect();
     setPos({
-      left: Math.max(4, Math.min(at.x, window.innerWidth - r.width - 4)),
-      top: Math.max(4, Math.min(at.y, window.innerHeight - r.height - 4)),
+      left: Math.max(4, Math.min(x, window.innerWidth - r.width - 4)),
+      top: Math.max(4, Math.min(y, window.innerHeight - r.height - 4)),
     });
-  }, [at]);
+  }, [x, y]);
 
   useEffect(() => {
     ref.current?.querySelector("button")?.focus();
@@ -135,14 +183,37 @@ function RowMenu({ at, onStop, onRemove, onClose }: {
       window.removeEventListener("blur", onClose);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [at]);
+  }, [x, y]);
 
+  return (
+    <div ref={ref} className="row-menu" role="menu" aria-label={label} style={pos}>
+      {children}
+    </div>
+  );
+}
+
+/** Where a row's menu opened, and for which session. */
+interface MenuAt {
+  id: string;
+  name: string;
+  live: boolean;
+  x: number;
+  y: number;
+}
+
+/** A row's context menu: Stop while the session is live, Remove always. */
+function RowMenu({ at, onStop, onRemove, onClose }: {
+  at: MenuAt;
+  onStop: (id: string) => void;
+  onRemove: (id: string) => void;
+  onClose: () => void;
+}) {
   const choose = (act: (id: string) => void) => () => {
     onClose();
     act(at.id);
   };
   return (
-    <div ref={ref} className="row-menu" role="menu" aria-label={`${at.name} actions`} style={pos}>
+    <FloatingMenu x={at.x} y={at.y} label={`${at.name} actions`} onClose={onClose}>
       {at.live && (
         <button role="menuitem" onClick={choose(onStop)}>
           Stop
@@ -151,7 +222,35 @@ function RowMenu({ at, onStop, onRemove, onClose }: {
       <button role="menuitem" onClick={choose(onRemove)}>
         Remove
       </button>
-    </div>
+    </FloatingMenu>
+  );
+}
+
+/** Where a `+k` menu opened: a session's older PRs, newest first. */
+interface PrMenuAt {
+  name: string;
+  prs: Pr[];
+  x: number;
+  y: number;
+}
+
+function PrMenu({ at, onClose }: { at: PrMenuAt; onClose: () => void }) {
+  return (
+    <FloatingMenu x={at.x} y={at.y} label={`More PRs from ${at.name}`} onClose={onClose}>
+      {at.prs.map((pr) => (
+        <button
+          role="menuitem"
+          key={pr.href}
+          title={pr.href}
+          onClick={() => {
+            onClose();
+            openPr(pr);
+          }}
+        >
+          #{pr.number}
+        </button>
+      ))}
+    </FloatingMenu>
   );
 }
 
@@ -187,6 +286,16 @@ export function Sidebar({
 }: SidebarProps) {
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
   const [menu, setMenu] = useState<MenuAt | null>(null);
+  const [prMenu, setPrMenu] = useState<PrMenuAt | null>(null);
+  const openPrMenu = (session: Session, e: ReactMouseEvent<HTMLButtonElement>) => {
+    const chip = e.currentTarget.getBoundingClientRect();
+    setPrMenu({
+      name: session.name ?? session.id ?? "",
+      prs: session.prs.slice(0, -1).reverse(),
+      x: chip.left,
+      y: chip.bottom + 2,
+    });
+  };
   const openMenu = (session: Session, e: ReactMouseEvent<HTMLLIElement>) => {
     const id = session.id!;
     // Not while its Stop or Remove runs; there is nothing more to ask of it.
@@ -273,6 +382,7 @@ export function Sidebar({
                   onMenu={openMenu}
                   onConfirmRemove={rowActions.confirmRemove}
                   onDismiss={rowActions.dismiss}
+                  onMorePrs={openPrMenu}
                 />
               ))}
             </ul>
@@ -283,7 +393,14 @@ export function Sidebar({
   }
 
   return (
-    <nav className="sidebar" aria-label="Sessions" onScroll={() => setMenu(null)}>
+    <nav
+      className="sidebar"
+      aria-label="Sessions"
+      onScroll={() => {
+        setMenu(null);
+        setPrMenu(null);
+      }}
+    >
       {trust && (
         <button className="trust-entry" aria-current={trust.selected || undefined} onClick={onShowTrust}>
           Trust prompt · {trust.label}
@@ -301,6 +418,7 @@ export function Sidebar({
           onClose={() => setMenu(null)}
         />
       )}
+      {prMenu && <PrMenu at={prMenu} onClose={() => setPrMenu(null)} />}
     </nav>
   );
 }

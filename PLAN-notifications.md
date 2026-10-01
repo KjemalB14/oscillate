@@ -122,6 +122,11 @@ target, two only after the spec was strengthened (`NOTES.md`, *Chapter 4, slice 
 opened nothing and is unexplained; every tap after it attached
 (`NOTES.md`, *Chapter 4, item 10 passed*).
 
+Slice 2 shipped 2026-10-01. Items 11–15 pass under `npm run e2e`
+(`e2e/pr-links.spec.ts`, by `e2e-author`), and item 16 passes under `cargo test`. All
+eight breaks turned red the claims they target. The first P5 was too weak, and P5b
+replaced it (`NOTES.md`, *Chapter 4, slice 2*). **Item 17 (by hand) is still open.**
+
 Every item is checked by `npm run e2e` against the fake `claude`, unless it says it's
 checked by hand or by `cargo test`. The specs come from `e2e-author`, and each is proved
 red by a break. "The notifier log" is the e2e build's record of every post, removal and
@@ -221,3 +226,22 @@ afterwards. Results go in `NOTES.md`.
 - **Harness:** `OSCILLATE_E2E_NOTIFY_LOG` and `OSCILLATE_E2E_FOCUS`, plus
   `fake.notifications()`, `fake.focus()`, `tapNotification()` and
   `dismissNotification()` (`e2e/README.md`).
+
+## Implementation, slice 2
+
+- **`src-tauri/src/pr_links.rs`:**
+  - `parse`/`read` turn a `state.json` into PRs, oldest first, plus its misses: no file,
+    unreadable, not JSON, no `children`, or a bad PR child (no id, or an href that isn't
+    `https://`).
+  - `PrLinks::attach` sets `Session.prs` on every listed id each poll, and logs each
+    (session, miss) once. Ids that aren't letters and digits never become a path.
+  - The poller runs it after `FirstSeen`, so a PR that appears or goes is a change.
+- **`open_pr(href)`:** opens only an `https://` href that a listed session names, through
+  the opener plugin. In e2e builds it's appended to `OSCILLATE_E2E_OPEN_LOG` instead.
+- **`src/Sidebar.tsx`:**
+  - `PrChips` shows `#N` for the newest PR and `+k` for the rest.
+  - `PrMenu` lists the others newest first. It shares `FloatingMenu` with the row's
+    context menu.
+  - Clicks and keys on the chips never select the row.
+- **Harness:** `fake.job()`, `fake.prState()`, `fake.opened()` and
+  `fake.claudeDirExpected()` (`e2e/README.md`).

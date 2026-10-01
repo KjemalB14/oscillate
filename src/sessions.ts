@@ -13,6 +13,12 @@ export type UiState =
   | "terminal-tab"
   | "unknown";
 
+/** One PR link; mirrors `Pr` in `src-tauri/src/pr_links.rs`. */
+export interface Pr {
+  number: string;
+  href: string;
+}
+
 /** Mirrors `Session` in `src-tauri/src/sessions.rs`. */
 export interface Session {
   /** Stable across polls. */
@@ -28,6 +34,8 @@ export interface Session {
   startedAt: number;
   /** What rows sort by, newest first: the `startedAt` the app first saw for this `key`. */
   sortKey: number;
+  /** Its PRs, oldest first, from the job's `state.json`; empty when it has none or can't be read. */
+  prs: Pr[];
 }
 
 /**

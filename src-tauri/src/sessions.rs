@@ -62,6 +62,9 @@ pub struct Session {
     /// What rows sort by, newest first: the `startedAt` the app first saw for this `key`
     /// (`FirstSeen`). Equal to `started_at` until then.
     pub sort_key: i64,
+    /// Its PRs, oldest first, from the job's `state.json` (`pr_links.rs`); empty on any
+    /// miss.
+    pub prs: Vec<crate::pr_links::Pr>,
 }
 
 pub fn to_session(e: &AgentEntry) -> Session {
@@ -94,6 +97,7 @@ pub fn to_session(e: &AgentEntry) -> Session {
         waiting_for: e.waiting_for.clone(),
         started_at: e.started_at.unwrap_or(0.0) as i64,
         sort_key: e.started_at.unwrap_or(0.0) as i64,
+        prs: Vec::new(),
     }
 }
 

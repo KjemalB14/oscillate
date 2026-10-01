@@ -5,7 +5,8 @@
 //! called only when the mapped list differs from the last good one. A failed poll keeps
 //! that list, logs one line, and waits 10s before the next timed try, so a missing
 //! `claude` doesn't mean a login shell every 2s. Every list is stamped with each row's
-//! first-seen sort key (`FirstSeen`) before it's compared or sent.
+//! first-seen sort key (`FirstSeen`) and its PR links (`PrLinks`, when given) before it's
+//! compared or sent, so a PR that appears is a change.
 
 use std::io::Read;
 use std::process::{Command, Stdio};
@@ -16,6 +17,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use crate::claude::{child_env, Resolver};
+use crate::pr_links::PrLinks;
 use crate::sessions::{parse, FirstSeen, Session};
 
 pub struct PollConfig {
@@ -47,6 +49,7 @@ impl Poller {
         resolver: Arc<Resolver>,
         cfg: PollConfig,
         triggers: Receiver<()>,
+        mut pr_links: Option<PrLinks>,
         on_change: impl Fn(&[Session]) + Send + 'static,
     ) -> Poller {
         let latest = Arc::new(Mutex::new(None));
@@ -77,6 +80,9 @@ impl Poller {
                     match poll_once(&resolver, cfg.timeout) {
                         Ok(mut sessions) => {
                             first_seen.stamp(&mut sessions);
+                            if let Some(links) = pr_links.as_mut() {
+                                links.attach(&mut sessions);
+                            }
                             due = started + cfg.interval;
                             if last.as_ref() != Some(&sessions) {
                                 *latest2.lock().unwrap() = Some(sessions.clone());
@@ -163,7 +169,7 @@ mod tests {
         let seen = Arc::new(Mutex::new(Vec::new()));
         let s = seen.clone();
         let record = move |list: &[Session]| s.lock().unwrap().push(list.to_vec());
-        let poller = Poller::start(fake.resolver(), cfg, rx, record);
+        let poller = Poller::start(fake.resolver(), cfg, rx, None, record);
         (poller, tx, Seen(seen))
     }
 
