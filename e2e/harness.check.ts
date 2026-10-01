@@ -4,12 +4,24 @@
  * again on a touch in the temp watched directory. Then that the fake `attach` logs its cwd
  * and its keys, and that `fake.running()` sees it. Then chapter 3's pieces: the fake
  * `--bg`, the folder-picker hook, `relaunch()`, the fake `stop` and `rm`, and that this
- * driver can right-click.
+ * driver can right-click. Then chapter 4's: the notify log, the focus file, and a
+ * notification tap.
  */
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { appPids, attachable, fake, nextPoll, press, relaunch, rightClick, show } from "./helpers/app.js";
+import {
+  appPids,
+  attachable,
+  dismissNotification,
+  fake,
+  nextPoll,
+  press,
+  relaunch,
+  rightClick,
+  show,
+  tapNotification,
+} from "./helpers/app.js";
 
 describe("harness", () => {
   it("launches the app with a Sessions sidebar", async () => {
@@ -124,5 +136,35 @@ describe("harness: a right-click", () => {
     await rightClick($("button*=Add repo"));
     const seen = await browser.execute(() => (window as unknown as { __ev: string[] }).__ev);
     expect(seen).toEqual(["mousedown:2:Add repo…", "contextmenu:2:Add repo…", "mouseup:2:Add repo…"]);
+  });
+});
+
+describe("harness: notifications", () => {
+  it("logs a post on a transition, and a tap opens the session through the delegate's handler", async () => {
+    const working = attachable("hnote1", { repo: "hcheck-note" });
+    await show([working]);
+    const from = fake.notifications().length;
+    await show([{ ...working, state: "blocked", status: "waiting", waitingFor: "approve Bash" }]);
+    await browser.waitUntil(() => fake.notifications().slice(from).some((n) => n.op === "post"), {
+      timeoutMsg: "no post logged",
+    });
+    expect(fake.notifications().slice(from)).toContainEqual(
+      expect.objectContaining({ op: "post", id: "hnote1", body: "approve Bash", subtitle: "hcheck-note" }),
+    );
+    expect(fake.notifications().slice(from)).toContainEqual(expect.objectContaining({ op: "badge", count: 1 }));
+
+    await dismissNotification("hnote1");
+    await tapNotification("hnote1");
+    await browser.waitUntil(() => fake.attaches("hnote1").length === 1, { timeoutMsg: "the tap opened nothing" });
+    expect(fake.notifications().slice(from)).toContainEqual(expect.objectContaining({ op: "remove", id: "hnote1" }));
+    await press("Ctrl+Z");
+    await browser.waitUntil(() => !fake.running().attach.has("hnote1"), { timeoutMsg: "still running" });
+    await show("all-states");
+  });
+
+  it("reads the focus file", () => {
+    fake.focus("background");
+    expect(readFileSync(join(fake.dir, "focus"), "utf8")).toBe("background");
+    fake.focus("key");
   });
 });

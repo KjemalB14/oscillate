@@ -168,3 +168,32 @@ export async function rightClick(el: ChainablePromiseElement): Promise<void> {
   }, target as unknown as HTMLElement);
   if (error) throw new Error(`rightClick(): ${error}`);
 }
+
+/**
+ * Taps the app's notification for session `id`, as a click on a real banner would: it
+ * runs the notification delegate's own handler, through an e2e-only command. Real
+ * notifications can't appear in the e2e build, which has no app bundle.
+ */
+export async function tapNotification(id: string): Promise<void> {
+  await notificationResponse(id, "tap");
+}
+
+/** Dismisses the app's notification for session `id`, as closing a real banner would. */
+export async function dismissNotification(id: string): Promise<void> {
+  await notificationResponse(id, "dismiss");
+}
+
+async function notificationResponse(id: string, action: "tap" | "dismiss"): Promise<void> {
+  const error = await browser.execute(
+    (id: string, action: string) => {
+      const tauri = (window as unknown as { __TAURI__: { core: { invoke: (c: string, a: object) => Promise<unknown> } } }).__TAURI__;
+      return tauri.core.invoke("e2e_notification_response", { id, action }).then(
+        () => null,
+        (e) => String(e),
+      );
+    },
+    id,
+    action,
+  );
+  if (error) throw new Error(`${action}Notification(${id}): ${error}`);
+}
