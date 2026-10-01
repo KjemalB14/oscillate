@@ -14,9 +14,11 @@ re-read before changing anything.
 
 **When a chapter or slice is finished, say so and hand off.** Do not roll straight into
 the next one. Finished means:
-- committed, and merged into `main` (there is no remote). The merge is gated: a
-  PreToolUse hook (`.claude/e2e-merge-gate.sh`) refuses it until the branch's exact
-  tree has a green `npm run e2e`, or its commits say `E2E: none — <why>`;
+- committed, merged into `main`, and `main` pushed to `origin`
+  (github.com/KjemalB14/oscillate, public). The merge is gated: a PreToolUse hook
+  (`.claude/e2e-merge-gate.sh`) refuses it until the branch's exact tree has a green
+  `npm run e2e`, or its commits say `E2E: none — <why>`. Only `main` is pushed, never
+  working branches;
 - `CLAUDE.md` states the new state;
 - `NOTES.md` carries the reasoning;
 - `BACKLOG.md` is ticked;
