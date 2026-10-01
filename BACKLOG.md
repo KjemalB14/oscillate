@@ -54,17 +54,21 @@ All four slices shipped (below). The results are in `NOTES.md` → *Chapter 3 cl
     asks for confirmation. An `rm` refusal is shown verbatim, with no
     `--discard-unpushed`.
 
-### Chapter 4 — It tells you when it needs you (closes MVP 1)
+### Chapter 4 — It tells you when it needs you (closes MVP 1): open
 
-- [ ] **1. Notifications.**
-  - Triggered on transitions into needs you, done or failed; not for the visible
-    session.
-  - A Dock badge shows the needs-you count.
-  - Clicking a notification opens the session. `/decide` picks the community plugin or
-    a native delegate.
+Decided 2026-09-30. The decisions, rejections and acceptance criteria are in
+`PLAN-notifications.md`.
+
+- [ ] **1. Notifications and the Dock badge.**
+  - Our own `UNUserNotificationCenter` delegate through objc2, not a plugin.
+  - Posted on transitions into needs you, done or failed, but not at launch, and not
+    for the session whose pane is selected while the window is key.
+  - A tap opens the session the way a row click does. A dismissal does nothing.
+  - The Dock badge shows the needs-you count. Rows stay still.
 - [ ] **2. PR link badge.**
   - `pr_links.rs` reads `children[kind=pr]` from the job's `state.json`.
-  - Any parse miss means no badge.
+  - The row shows the newest as `#N`, then `+k`, which opens a menu of the others.
+  - Any parse miss means no chip.
   - Clicking opens the PR in the browser.
 
 ---
@@ -96,6 +100,11 @@ All four slices shipped (below). The results are in `NOTES.md` → *Chapter 3 cl
 - [ ] **Move `@xterm/*` from the 6.1.0 betas to 6.1.0 stable** once it ships. The
   betas are pinned exactly for the kitty keyboard protocol (`NOTES.md`, chapter 1
   slice 2).
+- [ ] **Unseen markers on rows**, from zeron: a row that turned done, failed or needs
+  you while you weren't looking keeps a marker until you open it. Chapter 4 left it
+  out (`PLAN-notifications.md`).
+- [ ] **Per-state sounds**, from zeron: separate sounds for done, needs input and
+  failure. Chapter 4 uses the system default sound.
 - [ ] **Branch name and PR status colors** on the badge, once the thread view is reading
   transcripts anyway.
 - [ ] **Check the daemon's PATH when an Oscillate click starts it.** Item 24's daemon

@@ -98,9 +98,14 @@ decisions and what it didn't prove are in `NOTES.md` → *Chapter 3 closed*.
 - **The slice-4 app is installed** in `/Applications` (2026-09-30), and every hand check
   (items 12, 17, 22) passed in a release build.
 
-**Next: chapter 4, *It tells you when it needs you*** (`BACKLOG.md`). It isn't open.
-Open it with `/decide`, which should read `NOTES.md` → *zeron, a reference project*
-first.
+**Chapter 4, *It tells you when it needs you*, is open** (decided 2026-09-30). It's the
+last chapter of MVP 1. `PLAN-notifications.md` holds its decisions and acceptance
+criteria, in two slices: notifications and the Dock badge, then the PR link. Slice 1 is
+next.
+- Notifications use our own `UNUserNotificationCenter` delegate through objc2, not a
+  plugin.
+- Real notifications need a bundled app, so the e2e build logs them instead, and the
+  hand checks are in the release app.
 
 - Dev: `npm run tauri dev`. Release binary: `npx tauri build --no-bundle`.
 - Install: quit the app, then `npx tauri build` and `ditto
