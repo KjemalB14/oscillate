@@ -1,6 +1,8 @@
+mod attention;
 mod claude;
 mod endsession;
 mod newsession;
+mod notifications;
 mod poll;
 mod pty;
 mod repos;
@@ -119,6 +121,29 @@ fn end_session(
     result
 }
 
+/// The session whose pane the page shows, or `null`. Its transitions aren't notified
+/// while the window is key, and opening it removes its delivered notification.
+#[tauri::command]
+fn set_visible_session(notifier: State<'_, notifications::Notifier>, id: Option<String>) {
+    notifier.set_visible(id);
+}
+
+/// The e2e build's stand-in for a tap or a dismissal on a real notification: it runs the
+/// delegate's own handler. Any other build refuses it.
+#[tauri::command]
+fn e2e_notification_response(app: AppHandle, id: String, action: String) -> Result<(), String> {
+    if !cfg!(feature = "e2e") {
+        return Err("e2e builds only".into());
+    }
+    let response = match action.as_str() {
+        "tap" => notifications::Response::Tap,
+        "dismiss" => notifications::Response::Dismiss,
+        other => return Err(format!("unknown action {other:?}")),
+    };
+    notifications::respond(&app, &id, response);
+    Ok(())
+}
+
 #[tauri::command]
 fn repos_list(repos: State<'_, repos::Repos>) -> Vec<String> {
     repos.list()
@@ -159,6 +184,14 @@ pub fn run() {
                 .unwrap_or_else(|| {
                     PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(".claude")
                 });
+            // `OSCILLATE_DATA_DIR` keeps e2e runs' `repos.json` in their temp dir.
+            let data_dir = match std::env::var_os("OSCILLATE_DATA_DIR").filter(|d| !d.is_empty()) {
+                Some(dir) => PathBuf::from(dir),
+                None => app.path().app_data_dir()?,
+            };
+            // Both before the poller, whose first list reads them.
+            app.manage(repos::Repos::load(&data_dir));
+            app.manage(notifications::Notifier::new(app.handle()));
             let (tx, rx) = mpsc::channel();
             let poll_now = tx.clone();
             let watcher = watch::watch(&[claude_dir.join("sessions"), claude_dir.join("jobs")], tx);
@@ -166,14 +199,10 @@ pub fn run() {
             let poller = poll::Poller::start(resolver, Default::default(), rx, move |list| {
                 pty::close_unlisted(&handle.state::<pty::Ptys>(), list);
                 let _ = handle.emit("sessions-changed", list);
+                let added = handle.state::<repos::Repos>().list();
+                handle.state::<notifications::Notifier>().on_list(&handle, list, &added);
             });
             app.manage(SessionModel { poller, poll_now, _watcher: watcher });
-            // `OSCILLATE_DATA_DIR` keeps e2e runs' `repos.json` in their temp dir.
-            let data_dir = match std::env::var_os("OSCILLATE_DATA_DIR").filter(|d| !d.is_empty()) {
-                Some(dir) => PathBuf::from(dir),
-                None => app.path().app_data_dir()?,
-            };
-            app.manage(repos::Repos::load(&data_dir));
             pty::watch(app.handle().clone());
             app.set_menu(menu(app.handle())?)?;
             Ok(())
@@ -204,6 +233,8 @@ pub fn run() {
             repos_list,
             repos_add,
             repos_remove,
+            set_visible_session,
+            e2e_notification_response,
             pty::pty_spawn,
             pty::pty_write,
             pty::pty_resize,

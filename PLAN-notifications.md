@@ -115,6 +115,12 @@ what a slice builds:
 
 ## Acceptance criteria
 
+**Status:** slice 1 shipped 2026-10-01. Items 1–9 pass under `npm run e2e`
+(`e2e/notifications.spec.ts`, by `e2e-author`). All 12 breaks turned red the claims they
+target, two only after the spec was strengthened (`NOTES.md`, *Chapter 4, slice 1*).
+**Item 10 (by hand) is still open.** It needs the release app installed, with the author
+at the laptop.
+
 Every item is checked by `npm run e2e` against the fake `claude`, unless it says it's
 checked by hand or by `cargo test`. The specs come from `e2e-author`, and each is proved
 red by a break. "The notifier log" is the e2e build's record of every post, removal and
@@ -186,3 +192,31 @@ afterwards. Results go in `NOTES.md`.
 
 ---
 <!-- agreed 2026-09-30. Implementation below. -->
+
+## Implementation, slice 1
+
+- **`src-tauri/src/attention.rs`** (pure, `cargo test`): `Attention::update` returns the
+  notes a list's transitions make, keyed by id, with the first list as the baseline.
+  `labels()` ports `src/groups.ts`'s label rule for the subtitle, `needs_you()` is the
+  badge count, and `visible()` is item 4's rule.
+- **`src-tauri/src/notifications.rs`:** the `Notifier`, which `lib.rs` manages before the
+  poller starts. The poller's `on_change` calls `on_list` after `sessions-changed`. It has
+  three sinks:
+  - `MacSink`, only in a `.app`: `UNUserNotificationCenter` through objc2, an
+    `OscillateNotificationDelegate` class (`willPresent` → banner, list and sound;
+    `didReceive` → tap or dismiss), and authorization asked once at launch;
+  - `NoSink`, in an unbundled `tauri dev`;
+  - `LogSink`, in the e2e build.
+
+  The Dock badge is Tauri's `set_badge_count`. tao implements it on macOS as
+  `NSApp.dockTile.setBadgeLabel`. `respond()` is the one tap handler, shared by the
+  delegate and the e2e command.
+- **Commands:**
+  - `set_visible_session(id)`: the page's selection, which also removes that id's
+    delivered notification;
+  - `e2e_notification_response(id, action)`: the e2e build only. Other builds refuse it.
+- **`src/App.tsx`:** sends `selected` (or `null` for the trust pane) to Rust on every
+  change, and opens `open-session` through `select`.
+- **Harness:** `OSCILLATE_E2E_NOTIFY_LOG` and `OSCILLATE_E2E_FOCUS`, plus
+  `fake.notifications()`, `fake.focus()`, `tapNotification()` and
+  `dismissNotification()` (`e2e/README.md`).

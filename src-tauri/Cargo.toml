@@ -33,6 +33,14 @@ libc = "0.2"
 tauri-plugin-wdio = { version = "1.4", optional = true }
 tauri-plugin-wdio-webdriver = { version = "1.4", optional = true }
 
+# Notifications (`notifications.rs`): our own UNUserNotificationCenter delegate, not a plugin
+# (PLAN-notifications.md). All four were already in Cargo.lock through tao and wry.
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-foundation = "0.3"
+objc2-user-notifications = "0.3"
+block2 = "0.6"
+
 [features]
 e2e = ["dep:tauri-plugin-wdio", "dep:tauri-plugin-wdio-webdriver"]
 

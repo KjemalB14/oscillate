@@ -76,6 +76,23 @@ export default function App() {
     });
   };
 
+  // A tapped notification opens its session as a row click does. The ref keeps the
+  // listener from calling a `select` that closed over an old `open`.
+  const selectRef = useRef(select);
+  selectRef.current = select;
+  useEffect(() => {
+    const unlisten = listen<string>("open-session", (e) => selectRef.current(e.payload));
+    return () => void unlisten.then((f) => f());
+  }, []);
+
+  // Rust doesn't notify for the session on screen, and opening one removes its
+  // notification. A reload starts at null, which clears what Rust had.
+  useEffect(() => {
+    invoke("set_visible_session", { id: selected === TRUST ? null : selected }).catch((e) =>
+      console.error("set_visible_session:", e),
+    );
+  }, [selected]);
+
   // A session that is no longer listed loses its pane (Rust has already closed its PTY).
   useEffect(() => {
     if (!sessions) return;

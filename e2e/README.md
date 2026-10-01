@@ -120,6 +120,20 @@ when nothing changed.
   - `fake.pick(dir | null)` answers the app's next "Add repo…" folder picker (`null`
     cancels). The e2e build reads it instead of opening the native dialog.
     `fake.reposJson()` reads the app's `repos.json` (`null` if there's none).
+  - **Notifications can't appear in the e2e build**, which has no app bundle, so its
+    notifier logs instead (`OSCILLATE_E2E_NOTIFY_LOG`). `fake.notifications()` reads the
+    log back in order:
+    - `{ op: "post", at, id, title, subtitle, body }`: one notification, whose `id` is
+      the session's id;
+    - `{ op: "remove", at, id }`: its delivered notification removed, which happens
+      whenever the page selects that session;
+    - `{ op: "badge", at, count }`: the Dock badge, with `count` `null` when it's cleared.
+  - `fake.focus("key" | "background" | "minimized")` sets what the app takes its
+    window's focus to be when it decides whether the selected session is on screen. It
+    defaults to `key`, and a spec that changes it puts it back.
+  - `tapNotification(id)` and `dismissNotification(id)` run the notification delegate's
+    own handler through an e2e-only command, as a tap or a dismissal on a real banner
+    would.
   - `fake.claudeDirTree()` hashes every path under the watched Claude dir, except the
     file `touch()` rewrites. `fake.claudeDirBaseline()` is that tree from before the app
     launched.

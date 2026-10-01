@@ -67,6 +67,12 @@ const CWD_MARK = "@@CWD@@";
 /** The file `touch()` rewrites; `claudeDirTree()` leaves it out. */
 const TOUCHED = join("sessions", "4242.json");
 
+/** One line of the app's notify log (`fake.notifications()`). */
+export type Notified =
+  | { op: "post"; at: number; id: string; title: string; subtitle: string; body: string }
+  | { op: "remove"; at: number; id: string }
+  | { op: "badge"; at: number; count: number | null };
+
 export class FakeClaude {
   private constructor(readonly dir: string) {}
 
@@ -102,6 +108,8 @@ export class FakeClaude {
       OSCILLATE_CLAUDE_DIR: this.claudeDir,
       OSCILLATE_DATA_DIR: this.dataDir,
       OSCILLATE_E2E_PICK: join(this.dir, "pick"),
+      OSCILLATE_E2E_NOTIFY_LOG: join(this.dir, "notify.log"),
+      OSCILLATE_E2E_FOCUS: join(this.dir, "focus"),
     };
   }
 
@@ -141,6 +149,8 @@ exit 2
     this.answerBg({ id: CAPTURED_BG_ID });
     this.answerRm();
     this.pick(null);
+    this.focus("key");
+    writeFileSync(join(this.dir, "notify.log"), "");
     writeFileSync(join(this.dir, "claude-dir-baseline.json"), JSON.stringify(this.claudeDirTree()));
   }
 
@@ -303,6 +313,29 @@ exit 2
    */
   pick(dir: string | null) {
     writeFileSync(join(this.dir, "pick"), dir ?? "");
+  }
+
+  /**
+   * What the app takes its window's focus to be when it decides whether a session is on
+   * screen: `key` (frontmost), `background` (behind another app) or `minimized`. The e2e
+   * build reads this instead of the real window, so a spec doesn't depend on which app
+   * macOS has in front. It outlives a spec; put it back to `key`.
+   */
+  focus(state: "key" | "background" | "minimized") {
+    writeFileSync(join(this.dir, "focus"), state);
+  }
+
+  /**
+   * Everything the app's notifier did, in order. The e2e build logs instead of reaching
+   * macOS: `post` (a notification, whose `id` is the session's id), `remove` (its
+   * delivered notification removed) and `badge` (the Dock badge; `count` is `null` when
+   * it's cleared). `at` is ms since the epoch.
+   */
+  notifications(): Notified[] {
+    return readFileSync(join(this.dir, "notify.log"), "utf8")
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => JSON.parse(line) as Notified);
   }
 
   /** The app's `repos.json` as it is on disk: its `repos`, or `null` if there's no file. */
