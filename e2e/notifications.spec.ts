@@ -221,11 +221,21 @@ describe("notifications: slice 1", () => {
     this.timeout(60_000);
     const ids = ["ntH1", "ntH2", "ntH3"];
     const es = ids.map((id) => base(id, "ntrepo8", id));
-    await show(es.map(working));
+    const extras: Entry[] = [
+      done(base("ntH4", "ntrepo8", "ntH4")),
+      failed(base("ntH5", "ntrepo8", "ntH5")),
+      working(base("ntH6", "ntrepo8", "ntH6")),
+      // A terminal-tab entry has no id, and must not count even when blocked.
+      { pid: 777002, cwd: fake.repo("ntrepo8"), kind: "interactive", startedAt: 1790000000600,
+        sessionId: "33333333-2222-3333-4444-555555555555", status: "waiting", waitingFor: "q", state: "blocked" },
+    ];
+    await show([...es.map(working), ...extras]);
     await open("ntH1");
+    await sleep(500);
+    const all = fake.notifications().length;
     const expectBadge = async (list: Entry[], want: number | null) => {
       const from = fake.notifications().length;
-      await change(list);
+      await change([...list, ...extras]);
       await browser.waitUntil(() => lastBadge(from) === want || (want === null && lastBadge(from) === undefined && fake.notifications().slice(0, from).filter((n) => n.op === "badge").at(-1)?.count === null), {
         timeout: 3000, interval: 50, timeoutMsg: `the badge did not become ${want} within 3s (last: ${lastBadge(from)})`,
       });
@@ -235,6 +245,10 @@ describe("notifications: slice 1", () => {
     await expectBadge([blocked(es[0], "q"), working(es[1]), working(es[2])], 1);
     await expectBadge(es.map((e) => blocked(e, "q")), 3);
     await expectBadge(es.map(working), null);
+    // The badge only ever took those values: none, 1, 3, none.
+    const seen = fake.notifications().slice(all).filter((n) => n.op === "badge").map((n) => (n as { count: number | null }).count);
+    const dedup = seen.filter((c, i) => i === 0 || c !== seen[i - 1]);
+    expect(dedup[0] === null ? dedup.slice(1) : dedup).toEqual([1, 3, null]);
   });
 
   it('9: "Nothing under the watched Claude dir is written"', () => {

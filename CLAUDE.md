@@ -100,12 +100,17 @@ decisions and what it didn't prove are in `NOTES.md` → *Chapter 3 closed*.
 
 **Chapter 4, *It tells you when it needs you*, is open** (decided 2026-09-30). It's the
 last chapter of MVP 1. `PLAN-notifications.md` holds its decisions and acceptance
-criteria, in two slices: notifications and the Dock badge, then the PR link. Slice 1 is
-next.
-- Notifications use our own `UNUserNotificationCenter` delegate through objc2, not a
-  plugin.
-- Real notifications need a bundled app, so the e2e build logs them instead, and the
-  hand checks are in the release app.
+criteria, in two slices: notifications and the Dock badge, then the PR link.
+- **Slice 1 is merged** (2026-10-01). Its item 10, by hand in the release app, is still
+  open, and the release app in `/Applications` is still slice 4's.
+  - `attention.rs` decides what notifies. `notifications.rs` posts it through our own
+    `UNUserNotificationCenter` delegate (objc2) in a `.app`, and posts nothing in
+    `tauri dev`.
+  - The page reports its selection with `set_visible_session`, and a tap emits
+    `open-session`.
+- Real notifications need a bundled app, so the e2e build logs them instead
+  (`fake.notifications()`, `e2e/README.md`).
+- Next: item 10, then slice 2.
 
 - Dev: `npm run tauri dev`. Release binary: `npx tauri build --no-bundle`.
 - Install: quit the app, then `npx tauri build` and `ditto

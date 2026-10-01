@@ -9,6 +9,81 @@ Newest entries at the top.
 
 ---
 
+## 2026-10-01 — Chapter 4, slice 1: notifications and the Dock badge
+
+Items 1–9 pass under `npm run e2e` (`e2e/notifications.spec.ts`, by `e2e-author`). Each
+claim was proved red by a break. Item 10 is by hand in the release app, and still open.
+
+### What was built
+
+- **`attention.rs` decides; `notifications.rs` posts.**
+  - The decision is pure: transitions per id, launch as the baseline, the visibility
+    rule, the badge count, and the sidebar's group labels.
+  - `notifications.rs` has three sinks: `MacSink` in a `.app`, `NoSink` in `tauri
+    dev`, and `LogSink` in the e2e build.
+- **The objc2 delegate compiled at the first try.** It's a `define_class!` with
+  `willPresent` and `didReceive`. `objc2-user-notifications` 0.3.2's default features
+  cover every class used. It was already in `Cargo.lock` through tao and wry.
+- **The Dock badge is Tauri's `set_badge_count`.** tao 0.35.3 implements it on macOS as
+  `NSApp.dockTile.setBadgeLabel` (`platform_impl/macos/badge.rs`). So tauri#13905 isn't
+  a code-level problem here, and item 10 is the check.
+- **The module is `notifications`, not `notify`.** `notify` is the file-watch crate, and
+  a module of that name shadowed it in `lib.rs`.
+- **The subtitle is the sidebar's group label.** It's ported from `src/groups.ts` to
+  Rust, over the sessions' cwds plus the added repos. `cargo test` mirrors the `beta`
+  and deep-collision cases.
+
+### Decisions, and what was rejected
+
+- **Focus is a file in the e2e build** (`OSCILLATE_E2E_FOCUS`, default `key`). Which app
+  macOS has in front during a suite run isn't the spec's to control.
+  **Rejected:** the real window focus in e2e, which would make item 4 depend on whatever
+  the author was doing. The real `is_focused`/`is_minimized` path is item 10's.
+- **Taps go through an e2e-only command into the same `respond()` the delegate calls.**
+  The command is always registered, and refuses outside the `e2e` feature, so
+  `generate_handler!` needs no cfg. **Rejected:** driving a real banner, which needs a
+  bundle and Apple Events.
+- **The page reports its selection to Rust** (`set_visible_session`), and that call also
+  removes the session's delivered notification. A reload starts at `null`.
+  **Rejected:** Rust inferring the visible session from which PTY was last written to.
+  Panes stay alive while hidden, so that says nothing about what's on screen.
+
+### Breaks, and what they turned red
+
+Each break was applied alone, the spec was run, and the file was restored.
+
+| Break | Red |
+|---|---|
+| B1 the first list posts (no baseline) | 3, after a fix (below) |
+| B2 the visibility rule skipped | 4 |
+| B3 a dismissal opens the session | 7 |
+| B4 the badge also counts done and failed | 8, after a fix (below) |
+| B5 selecting removes nothing | 5, 6 |
+| B6 every state change posts | 2 |
+| B7 a tap emits nothing | 6 |
+| B8 the body drops `waitingFor` | 1 |
+| B9 the subtitle is the raw `cwd` | 1 |
+| B10 the notifier writes under the Claude dir | 9 |
+| B11 the page never reports its selection | 4, 5, 6 |
+| B12 a tap on an unlisted id opens it | 6 |
+
+- **B1 first stayed green on item 3.** The spec read `from` after `relaunch()` returned,
+  and by then the new app's first poll had already posted. Now the old app reads the
+  list first, and `from` is taken before the relaunch.
+- **B4 first stayed green on item 8.** Its fixture had only blocked sessions. Now every
+  step also lists done, failed, working and terminal-tab entries.
+
+### Not proved yet
+
+- **Item 10 (by hand, release app).** It covers the permission prompt, a real banner, a
+  real tap from the background and from minimized, a dismissal, and the Dock tile.
+- **A second question while `blocked`.** If no other state shows between two polls,
+  it's not a transition, so nothing posts. Watch for it in use.
+- **A tap after the app quit.** Whether the delegate is set early enough isn't tested
+  (`PLAN-notifications.md`, *Still open*).
+
+---
+
 ## 2026-09-30 — Chapter 3 closed: start and end sessions from the app
 
 All four slices shipped, and all 22 items passed: 1–11, 13–16 and 18–21 under
