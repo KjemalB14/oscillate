@@ -9,6 +9,50 @@ Newest entries at the top.
 
 ---
 
+## 2026-10-01 — Chapter 4, item 10 passed by hand
+
+The author clicked, and this job (7787b9c5) checked each step against `claude agents
+--json --all` (Claude Code 2.1.286), the app's child processes, and the app's stderr.
+The app was the release bundle, installed in `/Applications` and launched from this job
+with stderr sent to a file. The throwaways were plan-mode sessions asked to use
+AskUserQuestion: `0e031ad4` and `ee570d5b`. Both were `claude rm`'d afterwards.
+
+- **Permission:** asked once at first launch. On this macOS, the request is itself a
+  notification ("Notifications may include alerts, sounds, and icon badges"), and
+  *Allow* sits under its Options. There's no dialog.
+- **Banner and Dock badge from the background:** the throwaway's banner showed, and the
+  Dock said 1.
+- **A tap, with Oscillate in the background and when minimized:** the window came
+  forward with the session attached. The log showed `notification 7787b9c5:
+  com.apple.UNNotificationDefaultActionIdentifier (Some(Tap))`, and `claude attach
+  7787b9c5` started as the app's child.
+- **Quiet while on screen:**
+  - `0e031ad4 Done: on screen, not notified` came while its pane was selected and
+    Oscillate in front.
+  - So did `7787b9c5 input needed: on screen, not notified`.
+- **A dismissal:** the banner was posted, closed with ×, and no response arrived. macOS
+  sends no dismiss response without a category's custom dismiss action, so nothing
+  opened.
+
+Found on the way:
+- **The first tap opened nothing,** and stays unexplained. The window came forward, but
+  no session was selected and no attach ran. That build logged nothing on a response.
+  Every tap after the log lines were added went through the delegate and attached.
+  **If it recurs, the log line says whether the delegate was called.**
+- **Every question this job asked the author notified for 7787b9c5,** since asking makes
+  this session blocked. In Notification Center, Oscillate's stack shows the newest on
+  top, so the first tap after the log lines opened this session, not the throwaway.
+  **Don't test with questions from the session doing the check:** they decide what
+  notifies, and they pull the author's focus out of Oscillate.
+- **`is_minimized()` read `false` while the window was minimized.** The outcome is the
+  same, since a minimized window is never key. But the logged value can't be trusted.
+- **The decision is logged on stderr now:** `<id> <body>: notified (selected …, key …,
+  minimized …)` or `on screen, not notified`, plus one line per response. A
+  Finder-launched app's stderr goes nowhere. To see it, launch
+  `/Applications/Oscillate.app/Contents/MacOS/oscillate 2>log`.
+
+---
+
 ## 2026-10-01 — Chapter 4, slice 1: notifications and the Dock badge
 
 Items 1–9 pass under `npm run e2e` (`e2e/notifications.spec.ts`, by `e2e-author`). Each

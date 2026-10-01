@@ -59,8 +59,8 @@ All four slices shipped (below). The results are in `NOTES.md` → *Chapter 3 cl
 Decided 2026-09-30. The decisions, rejections and acceptance criteria are in
 `PLAN-notifications.md`.
 
-- [x] **1. Notifications and the Dock badge.** Shipped 2026-10-01 (below). Item 10, by
-  hand in the release app, is still open.
+- [x] **1. Notifications and the Dock badge.** Shipped 2026-10-01 (below). Item 10 passed
+  by hand after the merge.
   - Our own `UNUserNotificationCenter` delegate through objc2, not a plugin.
   - Posted on transitions into needs you, done or failed, but not at launch, and not
     for the session whose pane is selected while the window is key.
@@ -130,8 +130,8 @@ gate on merge instead of push. See `NOTES.md` → *Chapter 2 closed*.)
     done or failed. Launch is the baseline, and the selected session is quiet while the
     window is key.
   - A tap opens the session as a row click does. The Dock badge counts needs you.
-  - Items 1–9 pass under `npm run e2e`, and all 12 breaks turned red. Item 10 (by hand,
-    release app) is open. The results are in `NOTES.md`.
+  - Items 1–9 pass under `npm run e2e`, and all 12 breaks turned red. Item 10 passed by
+    hand in the release app. The results are in `NOTES.md`.
 - 2026-09-30: chapter 3, slice 4: Stop and Remove. A background row's context menu
   offers Stop while live and Remove always. Only Remove confirms. Either one runs only
   after the row's attach has been reaped, and an `rm` refusal is shown verbatim. Items

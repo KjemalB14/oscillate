@@ -118,8 +118,9 @@ what a slice builds:
 **Status:** slice 1 shipped 2026-10-01. Items 1–9 pass under `npm run e2e`
 (`e2e/notifications.spec.ts`, by `e2e-author`). All 12 breaks turned red the claims they
 target, two only after the spec was strengthened (`NOTES.md`, *Chapter 4, slice 1*).
-**Item 10 (by hand) is still open.** It needs the release app installed, with the author
-at the laptop.
+**Item 10 passed by hand** on 2026-10-01 in the installed release app. The first tap
+opened nothing and is unexplained; every tap after it attached
+(`NOTES.md`, *Chapter 4, item 10 passed*).
 
 Every item is checked by `npm run e2e` against the fake `claude`, unless it says it's
 checked by hand or by `cargo test`. The specs come from `e2e-author`, and each is proved

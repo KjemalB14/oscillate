@@ -62,7 +62,13 @@ impl Notifier {
             let selected = self.selected.lock().unwrap().clone();
             let (focused, minimized) = focus(app);
             for note in notes {
-                if !attention::visible(selected.as_deref(), focused, minimized, &note.id) {
+                if attention::visible(selected.as_deref(), focused, minimized, &note.id) {
+                    eprintln!("oscillate: {} {}: on screen, not notified", note.id, note.body);
+                } else {
+                    eprintln!(
+                        "oscillate: {} {}: notified (selected {selected:?}, key {focused}, minimized {minimized})",
+                        note.id, note.body
+                    );
                     self.sink.post(&note);
                 }
             }
@@ -97,6 +103,8 @@ pub fn respond(app: &AppHandle, id: &str, response: Response) {
     }
     if crate::session_cwd(app, id).is_some() {
         let _ = app.emit("open-session", id);
+    } else {
+        eprintln!("oscillate: tapped notification {id} isn't listed");
     }
 }
 
@@ -257,6 +265,7 @@ mod mac {
                     None
                 };
                 let id = response.notification().request().identifier().to_string();
+                eprintln!("oscillate: notification {id}: {action} ({kind:?})");
                 if let (Some(kind), Some(app)) = (kind, APP.get()) {
                     respond(app, &id, kind);
                 }
