@@ -9,6 +9,68 @@ Newest entries at the top.
 
 ---
 
+## 2026-10-01 — Chapter 4, slice 2: the PR link
+
+Items 11–15 pass under `npm run e2e` (`e2e/pr-links.spec.ts`, by `e2e-author`), and item
+16 passes under `cargo test`. Each claim was proved red by a break. Item 17, by hand in
+the release app, is still open.
+
+### What was built
+
+- **`pr_links.rs`:**
+  - It reads `jobs/<id>/state.json` for every listed id on each poll. Each file is about
+    3 KB, and the poll already runs every 2s.
+  - It keeps `children[]` entries with `kind: "pr"`, a string or number `id`, and an
+    `https://` href. They're kept oldest first, so the newest is the last.
+  - The poller attaches them after `FirstSeen`. A PR that appears or goes is a list
+    change, so `sessions-changed` carries it, and the watch on `jobs/*/state.json`
+    re-polls at once.
+- **Misses** are no file, unreadable, not JSON, no `children`, and a bad PR child. Each
+  logs one line per session and kind of miss, once for the life of the app. A
+  `children[]` with no PR entries isn't a miss: most sessions have none.
+- **`open_pr` opens only what a listed session names.** It checks the href against the
+  last snapshot's PRs, as well as the `https://` prefix. So the page can't ask Rust to
+  open an arbitrary URL.
+  - **Rejected:** opening from the page through the opener plugin's JS API. That would
+    have worked, but the e2e build couldn't intercept it without a second hook.
+- **`FloatingMenu`** is the row context menu's positioning and dismissal, factored out.
+  The `+k` menu uses it too. **Rejected:** a second copy of the same effects in a new
+  menu component.
+- **Invariant 5** now names the exception (`CLAUDE.md`).
+
+### Breaks, and what they turned red
+
+| Break | Red |
+|---|---|
+| P1 the oldest PR as the chip | 11, plus knock-ons in 13 and 15 |
+| P2 the `+k` menu oldest first | 11 (menu order) |
+| P3 `+k` counts the chip too | 11, 12 |
+| P4 `http://` hrefs accepted | 13 (non-https) |
+| P5b a miss on one row hides every row's chips | 13 (all six cases) |
+| P6 PRs read only at launch | all 12 |
+| P7 the app writes into a job dir | 15 |
+| P8 every menu item opens the newest | 11 (each item's own href) |
+
+- **The first P5 stayed green, and the break was at fault.** It skipped one poll on a new
+  miss, and the next poll recovered within the spec's 3s windows. P5b is persistent,
+  and it's the break that counts.
+- **P4 also turned item 11's "within 3s" red,** though that break doesn't touch it.
+  Probably a knock-on from the failing case before it. Watch item 11 for flakes.
+- **The spec lock refused a command that only named the spec's path,** in a heredoc
+  that wrote this job's own break runner. The runner was then written with the file
+  tools. The lock matches on the command's text, so naming a spec path anywhere in a
+  write counts as touching it.
+- **Breaks run about 30 minutes each when the spec fails.** Each failed test waits out
+  its timeouts. A laptop sleep paused the runner mid-break, and it resumed.
+
+### Not proved yet
+
+- **Item 17 (by hand, release app).** A real session's newest PR as `#N` with `+k`, and
+  `#N` opening the browser.
+- **That `children[]` is in creation order** (`PLAN-notifications.md`, *Still open*).
+
+---
+
 ## 2026-10-01 — A GitHub remote
 
 `main` is now pushed to github.com/KjemalB14/oscillate. The repo is **public**, at the

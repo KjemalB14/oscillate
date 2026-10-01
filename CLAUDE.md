@@ -115,7 +115,12 @@ criteria, in two slices: notifications and the Dock badge, then the PR link.
 - To see why something did or didn't notify, launch
   `/Applications/Oscillate.app/Contents/MacOS/oscillate 2>log`. It logs each decision
   and each tap.
-- Next: slice 2, the PR link.
+- **Slice 2 is merged** (2026-10-01). Its item 17, by hand in the release app, is still
+  open.
+  - `pr_links.rs` adds `prs` to every listed session.
+  - The sidebar shows the newest PR as `#N`, then `+k`.
+  - `open_pr` opens only links the app is listing.
+- Next: item 17. After that, chapter 4 and MVP 1 close.
 
 - Dev: `npm run tauri dev`. Release binary: `npx tauri build --no-bundle`.
 - Install: quit the app, then `npx tauri build` and `ditto
@@ -155,7 +160,8 @@ Breaking one is a regression even when nothing fails.
    `OSCILLATE_CLAUDE_BIN`, so tests run against a fake `claude` and never touch real
    sessions or usage.
 5. **Oscillate never edits `~/.claude.json` or anything under `~/.claude/`.** It reads
-   the session and job directories only as a trigger to re-poll.
+   the session and job directories only as a trigger to re-poll. The one exception is
+   invariant 2's: `pr_links.rs` reads each listed job's `state.json`, and only reads it.
 
 ## Decisions (locked)
 
