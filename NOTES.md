@@ -9,6 +9,19 @@ Newest entries at the top.
 
 ---
 
+## 2026-10-01 — Chapter 4, item 17 passed by hand
+
+The release bundle from `ch4/item17` was installed in `/Applications` and launched from
+this job with stderr sent to a file. `ade5c70a` ("Resizable zones implementation slice
+2", in clipped) showed `#46 +4`. The author clicked `#46`, then `+4 → #45`. Both PRs
+opened in the browser, and the app's log read `opening
+https://github.com/KjemalB14/clipped/pull/46`, then `…/pull/45`.
+- **`open_pr` now logs each link it opens** on stderr, as the notification decisions do.
+- **The miss log worked in the real app.** `77f34c6b` and `7787b9c5` logged
+  `NoChildren` once each at launch, and got no chip.
+
+---
+
 ## 2026-10-01 — Chapter 4, slice 2: the PR link
 
 Items 11–15 pass under `npm run e2e` (`e2e/pr-links.spec.ts`, by `e2e-author`), and item

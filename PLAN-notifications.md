@@ -125,7 +125,9 @@ opened nothing and is unexplained; every tap after it attached
 Slice 2 shipped 2026-10-01. Items 11–15 pass under `npm run e2e`
 (`e2e/pr-links.spec.ts`, by `e2e-author`), and item 16 passes under `cargo test`. All
 eight breaks turned red the claims they target. The first P5 was too weak, and P5b
-replaced it (`NOTES.md`, *Chapter 4, slice 2*). **Item 17 (by hand) is still open.**
+replaced it (`NOTES.md`, *Chapter 4, slice 2*). **Item 17 passed by hand** on 2026-10-01
+in the installed release app: `ade5c70a`'s row showed `#46 +4`, and `#46` and `+4 → #45`
+opened those PRs. Every item has now passed, and the chapter is closed.
 
 Every item is checked by `npm run e2e` against the fake `claude`, unless it says it's
 checked by hand or by `cargo test`. The specs come from `e2e-author`, and each is proved
