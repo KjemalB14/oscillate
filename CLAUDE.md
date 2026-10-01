@@ -100,27 +100,26 @@ decisions and what it didn't prove are in `NOTES.md` → *Chapter 3 closed*.
 - **The slice-4 app is installed** in `/Applications` (2026-09-30), and every hand check
   (items 12, 17, 22) passed in a release build.
 
-**Chapter 4, *It tells you when it needs you*, is open** (decided 2026-09-30). It's the
-last chapter of MVP 1. `PLAN-notifications.md` holds its decisions and acceptance
-criteria, in two slices: notifications and the Dock badge, then the PR link.
-- **Slice 1 is merged** (2026-10-01), and its app is installed in `/Applications`. Item
-  10 passed by hand.
-  - `attention.rs` decides what notifies. `notifications.rs` posts it through our own
-    `UNUserNotificationCenter` delegate (objc2) in a `.app`, and posts nothing in
-    `tauri dev`.
-  - The page reports its selection with `set_visible_session`, and a tap emits
-    `open-session`.
-- Real notifications need a bundled app, so the e2e build logs them instead
-  (`fake.notifications()`, `e2e/README.md`).
-- To see why something did or didn't notify, launch
-  `/Applications/Oscillate.app/Contents/MacOS/oscillate 2>log`. It logs each decision
-  and each tap.
-- **Slice 2 is merged** (2026-10-01). Its item 17, by hand in the release app, is still
-  open.
-  - `pr_links.rs` adds `prs` to every listed session.
-  - The sidebar shows the newest PR as `#N`, then `+k`.
-  - `open_pr` opens only links the app is listing.
-- Next: item 17. After that, chapter 4 and MVP 1 close.
+**Chapter 4, *It tells you when it needs you*, is closed** (2026-10-01), and with it
+**MVP 1**. Its decisions and what it didn't prove are in `NOTES.md` → *Chapter 4 closed*.
+- `attention.rs` decides what notifies: transitions into needs you, done or failed,
+  with launch as the baseline, and quiet for the selected session while the window is
+  key. `notifications.rs` posts through our own `UNUserNotificationCenter` delegate
+  (objc2) in a `.app`, and posts nothing in `tauri dev`.
+  - A tap emits `open-session`, which the page opens as a row click.
+  - The page reports its selection with `set_visible_session`.
+  - The Dock badge counts needs-you sessions.
+- `pr_links.rs` adds `prs` to every listed session from its job's `state.json`. The
+  sidebar shows the newest as `#N`, then `+k`, and `open_pr` opens only links the app
+  is listing.
+- The e2e build logs notifications, badge changes and opened links instead of reaching
+  macOS (`e2e/README.md`).
+- **The installed app is chapter 4's final build.** Launched as
+  `/Applications/Oscillate.app/Contents/MacOS/oscillate 2>log`, it logs each notify
+  decision, each tap, each opened link, and each PR-link miss.
+
+**Next: MVP 2** (`BACKLOG.md` → *Later*). Nothing is open. Pick what comes first from
+daily use, and open it with `/decide`.
 
 - Dev: `npm run tauri dev`. Release binary: `npx tauri build --no-bundle`.
 - Install: quit the app, then `npx tauri build` and `ditto

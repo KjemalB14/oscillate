@@ -9,6 +9,62 @@ Newest entries at the top.
 
 ---
 
+## 2026-10-01 — Chapter 4 closed: it tells you when it needs you
+
+Both slices shipped, and all 17 items passed: 1–9 and 11–15 under `npm run e2e`, each
+proved red by a break; 16 under `cargo test`; and 10 and 17 by hand in the release app.
+**MVP 1 is complete.** `PLAN-notifications.md` was deleted with this entry. Its full
+text is at commit `16e166e`: `git show 16e166e:PLAN-notifications.md`. The code comments
+and specs that cite it resolve there, as chapter 3's do. The decisions that outlive the
+chapter:
+
+- **Notifications go through our own `UNUserNotificationCenter` delegate (objc2), not a
+  plugin.** **Rejected:** the community `tauri-plugin-notifications`, a Swift-built
+  pre-release with clicks in JS only and an open dismiss-as-click bug. Also the
+  official plugin, which has no desktop click.
+- **What notifies:** a transition into needs you, done or failed, for a session with an
+  id, with launch as the baseline. A session is quiet only when it's selected and the
+  window is key and not minimized. **Rejected:** "selected, whatever the focus", which
+  hides a blocked session behind another app; and notifying at launch, which replays
+  old news.
+- **A tap opens the session through the row-click path.** A dismissal does nothing. The
+  Dock badge counts needs you, the visible session included.
+- **Rows stay still.** **Rejected:** zeron's attention sort, which reverses chapter 3,
+  and a pinned "Needs you" section.
+- **PR links: the newest as `#N`, then `+k`.** Any miss means no chip, logged once per
+  session. `open_pr` opens only `https://` links a listed session names.
+  **Rejected:** only the newest, and one chip per PR.
+- **The e2e build logs instead of reaching macOS:** notifications, badge changes,
+  opened links, and a focus file. Real banners and the browser are hand checks.
+- **Hand checks run where the app can be driven:** a foreground `claude` in Ghostty
+  (`CLAUDE.md`). Banner clicks stay the author's. Everything around them is read from
+  the app's stderr and the process list.
+
+What the chapter left unproved:
+- **The first notification tap in item 10 opened nothing,** on a build that logged
+  nothing. Every tap since went through the delegate.
+- **`is_minimized()` read `false` while minimized.** The outcome was the same.
+- **A tap after the app quit, and a second question asked without leaving `blocked`.**
+  Neither is tested.
+- **Whether `done` on every finished turn is too noisy** in daily use.
+- **That `children[]` is in creation order.**
+- **The reload flake** now also hits notifications item 3 (`BACKLOG.md` → *Later*).
+
+---
+
+## 2026-10-01 — Chapter 4, item 17 passed by hand
+
+The release bundle from `ch4/item17` was installed in `/Applications` and launched from
+this job with stderr sent to a file. `ade5c70a` ("Resizable zones implementation slice
+2", in clipped) showed `#46 +4`. The author clicked `#46`, then `+4 → #45`. Both PRs
+opened in the browser, and the app's log read `opening
+https://github.com/KjemalB14/clipped/pull/46`, then `…/pull/45`.
+- **`open_pr` now logs each link it opens** on stderr, as the notification decisions do.
+- **The miss log worked in the real app.** `77f34c6b` and `7787b9c5` logged
+  `NoChildren` once each at launch, and got no chip.
+
+---
+
 ## 2026-10-01 — Chapter 4, slice 2: the PR link
 
 Items 11–15 pass under `npm run e2e` (`e2e/pr-links.spec.ts`, by `e2e-author`), and item

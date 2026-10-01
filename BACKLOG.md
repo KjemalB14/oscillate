@@ -54,10 +54,10 @@ All four slices shipped (below). The results are in `NOTES.md` → *Chapter 3 cl
     asks for confirmation. An `rm` refusal is shown verbatim, with no
     `--discard-unpushed`.
 
-### Chapter 4 — It tells you when it needs you (closes MVP 1): open
+### Chapter 4 — It tells you when it needs you (closes MVP 1): closed 2026-10-01
 
-Decided 2026-09-30. The decisions, rejections and acceptance criteria are in
-`PLAN-notifications.md`.
+Both slices shipped (below). The results are in `NOTES.md` → *Chapter 4 closed*. **MVP 1
+is complete.**
 
 - [x] **1. Notifications and the Dock badge.** Shipped 2026-10-01 (below). Item 10 passed
   by hand after the merge.
@@ -66,8 +66,8 @@ Decided 2026-09-30. The decisions, rejections and acceptance criteria are in
     for the session whose pane is selected while the window is key.
   - A tap opens the session the way a row click does. A dismissal does nothing.
   - The Dock badge shows the needs-you count. Rows stay still.
-- [x] **2. PR link badge.** Shipped 2026-10-01 (below). Item 17, by hand in the release
-  app, is still open.
+- [x] **2. PR link badge.** Shipped 2026-10-01 (below). Item 17 passed by hand after the
+  merge.
   - `pr_links.rs` reads `children[kind=pr]` from the job's `state.json`.
   - The row shows the newest as `#N`, then `+k`, which opens a menu of the others.
   - Any parse miss means no chip.
@@ -140,7 +140,8 @@ gate on merge instead of push. See `NOTES.md` → *Chapter 2 closed*.)
   - A row shows its newest PR as `#N`, then `+k`, whose menu lists the rest.
   - `open_pr` opens only an `https://` link a listed session names.
   - Items 11–15 pass under `npm run e2e`, item 16 under `cargo test`, and all eight
-    breaks turned red. Item 17 (by hand) is open. The results are in `NOTES.md`.
+    breaks turned red. Item 17 (by hand, release app) passed. **Chapter 4 and MVP 1
+    close.** The results are in `NOTES.md`.
 - 2026-10-01: chapter 4, slice 1: notifications and the Dock badge.
   - Our own `UNUserNotificationCenter` delegate posts on transitions into needs you,
     done or failed. Launch is the baseline, and the selected session is quiet while the

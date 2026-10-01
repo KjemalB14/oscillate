@@ -163,6 +163,7 @@ fn open_pr(app: AppHandle, model: State<'_, SessionModel>, href: String) -> Resu
         let mut file = std::fs::OpenOptions::new().create(true).append(true).open(log).map_err(|e| e.to_string())?;
         return writeln!(file, "{href}").map_err(|e| e.to_string());
     }
+    eprintln!("oscillate: opening {href}");
     use tauri_plugin_opener::OpenerExt;
     app.opener().open_url(href, None::<&str>).map_err(|e| e.to_string())
 }
