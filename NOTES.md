@@ -9,6 +9,21 @@ Newest entries at the top.
 
 ---
 
+## 2026-10-01 — A GitHub remote
+
+`main` is now pushed to github.com/KjemalB14/oscillate. The repo is **public**, at the
+author's choice, and commit author emails are public with it.
+- Before the first push, every commit was scanned for tokens (`gh*_`, `sk-ant-`, AWS and
+  Slack keys), and none were found.
+- **The e2e gate stays on the merge, not the push.** It was put there because there was
+  no remote (`NOTES.md`, *Chapter 2 closed*). A merge into `main` is still the moment
+  code lands, and pushing `main` afterwards only publishes what already passed. So
+  `.claude/e2e-merge-gate.sh` is unchanged, including its comment saying there's no
+  remote.
+- **Only `main` is pushed.** Working branches (`chN/*`, `docs/*`) stay local.
+
+---
+
 ## 2026-10-01 — Chapter 4, item 10 passed by hand
 
 The author clicked, and this job (7787b9c5) checked each step against `claude agents
