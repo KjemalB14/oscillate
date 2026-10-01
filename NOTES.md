@@ -56,6 +56,10 @@ the release app, is still open.
   and it's the break that counts.
 - **P4 also turned item 11's "within 3s" red,** though that break doesn't touch it.
   Probably a knock-on from the failing case before it. Watch item 11 for flakes.
+- **The full suite's first run failed item 3 of slice 1** (`notifications.spec.ts`) on
+  a 30s timeout. That test does a `browser.refresh()`, the same reload hang as the
+  backlog's flaky `sidebar-order` item 4. The re-run was green (86 of 86) and was the
+  one recorded for the merge. The flake is in the same backlog item.
 - **The spec lock refused a command that only named the spec's path,** in a heredoc
   that wrote this job's own break runner. The runner was then written with the file
   tools. The lock matches on the command's text, so naming a spec path anywhere in a
