@@ -76,6 +76,13 @@ Decided 2026-09-30. The decisions, rejections and acceptance criteria are in
 
 ## Later — MVP 2
 
+- [ ] **Try giving `claude --bg` jobs window control, once.**
+  - Add the `claude.exe` binary (under nvm) to Accessibility and to Screen & System
+    Audio Recording.
+  - Then, from a `--bg` job, run `drive-window <pid> front` and a `shot`.
+  - Doubts: Apple Events consent can't be pre-granted, and the binary's path changes on
+    every update. If it fails, hand checks stay in a foreground Ghostty session
+    (`CLAUDE.md`).
 - [ ] **The reload test flakes in full runs** (`sidebar-order.spec.ts`, item 4). It timed out
   at 30s in 2 of 8 full runs on slice 4's branch, 0 of 4 on `main`, and 2 of 5 in slice
   3 (`NOTES.md`, *Chapter 3, slice 4*). The hang is a WebDriver `execute` across
