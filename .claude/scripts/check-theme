@@ -1,0 +1,149 @@
+#!/usr/bin/env -S npx --no-install tsx
+// purpose: Check src/palette.ts: text contrast on every surface in both modes, and a complete terminal theme (PLAN-ui-pass.md items 2-3).
+//
+// Plain JS (tsx runs it and resolves the .ts import); run from the repo root.
+
+const HELP = `check-theme — measure src/palette.ts against PLAN-ui-pass.md items 2 and 3.
+
+Usage:
+  .claude/scripts/check-theme [--all]
+
+For each mode (dark, light), every text role is measured on every surface it is drawn
+on. A translucent surface is composited over three backdrops: the opaque window color,
+pure black, and pure white (what the glass may show). Primary text and colored text
+need 4.5:1; muted text, focus rings and state dots need 3:1.
+
+It also checks that each mode's terminal theme sets foreground, background, cursor,
+selection and all 16 ANSI colors, with the background at TERMINAL_ALPHA (0.75-0.85).
+ANSI contrast is reported, never failed: Claude's TUI mostly draws its own RGB.
+
+Options:
+  --all        Print passing pairs too (default: failures, ANSI notes and a summary).
+  -h, --help   Show this message.
+
+Exits 1 if any pair or theme check fails.`;
+
+const args = process.argv.slice(2);
+if (args.includes("-h") || args.includes("--help")) {
+  console.log(HELP);
+  process.exit(0);
+}
+const showAll = args.includes("--all");
+
+const { palettes, terminalTheme, TERMINAL_ALPHA } = await import(
+  new URL("../../src/palette.ts", import.meta.url).href
+);
+
+/** "#rrggbb" or "rgb(r g b / a%)" → [r, g, b, a]. */
+function parse(color) {
+  let m = /^#([0-9a-f]{6})$/i.exec(color);
+  if (m) {
+    const n = parseInt(m[1], 16);
+    return [n >> 16, (n >> 8) & 255, n & 255, 1];
+  }
+  m = /^rgb\((\d+) (\d+) (\d+)(?: \/ (\d+(?:\.\d+)?)%)?\)$/.exec(color);
+  if (m) return [+m[1], +m[2], +m[3], m[4] === undefined ? 1 : +m[4] / 100];
+  throw new Error(`unparseable color: ${color}`);
+}
+
+/** `top` over an opaque `bottom`. */
+function over(top, bottom) {
+  const a = top[3];
+  return [0, 1, 2].map((i) => top[i] * a + bottom[i] * (1 - a)).concat(1);
+}
+
+function luminance([r, g, b]) {
+  const lin = (c) => {
+    c /= 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+}
+
+function contrast(a, b) {
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+const TEXT = 4.5;
+const LARGE = 3;
+let failures = 0;
+const fail = (line) => {
+  failures++;
+  console.log(`FAIL ${line}`);
+};
+
+for (const mode of ["dark", "light"]) {
+  const c = palettes[mode].chrome;
+  const tint = (role, pct) => {
+    const [r, g, b] = parse(c[role]);
+    return `rgb(${r} ${g} ${b} / ${pct}%)`;
+  };
+
+  // Each surface: the layers it's painted as, bottom first, and what's drawn on it.
+  const surfaces = {
+    sidebar: {
+      layers: [c.sidebar],
+      on: { text: TEXT, muted: LARGE, needsYou: TEXT, failed: TEXT, focus: LARGE, working: LARGE, done: LARGE, stopped: LARGE },
+    },
+    "sidebar+hover": { layers: [c.sidebar, c.hover], on: { text: TEXT, muted: LARGE } },
+    "sidebar+selected": { layers: [c.sidebar, c.selected], on: { text: TEXT, muted: LARGE, needsYou: TEXT } },
+    raised: { layers: [c.raised], on: { text: TEXT, muted: LARGE, needsYou: TEXT, failed: TEXT, focus: LARGE } },
+    "raised+ground (inputs)": { layers: [c.raised, c.ground], on: { text: TEXT, muted: LARGE } },
+    "sidebar+failed 12% (row error)": { layers: [c.sidebar, tint("failed", 12)], on: { failed: TEXT } },
+    "raised+failed 12% (new-session error)": { layers: [c.raised, tint("failed", 12)], on: { failed: TEXT } },
+    "sidebar+needsYou 12% (trust bar)": { layers: [c.sidebar, tint("needsYou", 12)], on: { needsYou: TEXT, muted: LARGE } },
+    "sidebar+needsYou 16% (trust entry)": { layers: [c.sidebar, tint("needsYou", 16)], on: { needsYou: TEXT } },
+    "focus fill": { layers: [c.focus], on: { onFocus: TEXT } },
+  };
+
+  const backdrops = { window: parse(c.window), black: [0, 0, 0, 1], white: [255, 255, 255, 1] };
+
+  for (const [name, { layers, on }] of Object.entries(surfaces)) {
+    for (const [bdName, bd] of Object.entries(backdrops)) {
+      const ground = layers.reduce((acc, layer) => over(parse(layer), acc), bd);
+      for (const [role, min] of Object.entries(on)) {
+        const ratio = contrast(over(parse(c[role]), ground), ground);
+        const line = `${mode} ${name} over ${bdName}: ${role} ${ratio.toFixed(2)} (min ${min})`;
+        if (ratio < min) fail(line);
+        else if (showAll) console.log(`ok   ${line}`);
+      }
+    }
+  }
+
+  // The terminal theme: complete, and translucent by TERMINAL_ALPHA.
+  const theme = terminalTheme(mode);
+  const keys = [
+    "foreground", "background", "cursor", "selectionBackground",
+    "black", "red", "green", "yellow", "blue", "magenta", "cyan", "white",
+    "brightBlack", "brightRed", "brightGreen", "brightYellow",
+    "brightBlue", "brightMagenta", "brightCyan", "brightWhite",
+  ];
+  for (const key of keys) {
+    try {
+      parse(theme[key] ?? "");
+    } catch {
+      fail(`${mode} terminal theme: ${key} missing or unparseable (${theme[key]})`);
+    }
+  }
+  const alpha = parse(theme.background)[3];
+  if (alpha !== TERMINAL_ALPHA || alpha < 0.75 || alpha > 0.85)
+    fail(`${mode} terminal background alpha ${alpha}, want TERMINAL_ALPHA in 0.75-0.85`);
+
+  for (const [bdName, bd] of Object.entries(backdrops)) {
+    const bg = over(parse(theme.background), bd);
+    const fg = contrast(parse(theme.foreground), bg);
+    const line = `${mode} terminal over ${bdName}: foreground ${fg.toFixed(2)} (min ${TEXT})`;
+    if (fg < TEXT) fail(line);
+    else if (showAll) console.log(`ok   ${line}`);
+    const weak = keys
+      .slice(4)
+      .map((k) => [k, contrast(parse(theme[k]), bg)])
+      .filter(([, r]) => r < LARGE)
+      .map(([k, r]) => `${k} ${r.toFixed(2)}`);
+    if (weak.length) console.log(`note ${mode} terminal over ${bdName}: ANSI under 3:1: ${weak.join(", ")}`);
+  }
+}
+
+console.log(failures ? `${failures} check(s) failed` : "all checks passed");
+process.exit(failures ? 1 : 0);

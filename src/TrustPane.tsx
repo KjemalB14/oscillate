@@ -35,7 +35,7 @@ export function TrustPane({ info, visible, focusRequest, onExit, onFailed }: Pro
   visibleNow.current = visible;
 
   useEffect(() => {
-    const { term: t, fit: f } = createTerminal(host.current!);
+    const { term: t, fit: f, dispose } = createTerminal(host.current!);
     term.current = t;
     fit.current = f;
     let disposed = false;
@@ -92,7 +92,7 @@ export function TrustPane({ info, visible, focusRequest, onExit, onFailed }: Pro
       input.dispose();
       binary.dispose();
       resize.dispose();
-      t.dispose();
+      dispose();
       term.current = null;
       fit.current = null;
     };

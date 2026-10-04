@@ -287,6 +287,22 @@ export function Sidebar({
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
   const [menu, setMenu] = useState<MenuAt | null>(null);
   const [prMenu, setPrMenu] = useState<PrMenuAt | null>(null);
+  const scroller = useRef<HTMLDivElement>(null);
+  const [fade, setFade] = useState("");
+  // The list fades at whichever edge hides rows: on scroll, and whenever rows change.
+  const measureFade = () => {
+    const el = scroller.current;
+    if (!el) return;
+    const edges = [];
+    if (el.scrollTop > 0) edges.push("top");
+    if (el.scrollTop + el.clientHeight < el.scrollHeight - 1) edges.push("bottom");
+    setFade(edges.join(" "));
+  };
+  useLayoutEffect(measureFade);
+  useEffect(() => {
+    window.addEventListener("resize", measureFade);
+    return () => window.removeEventListener("resize", measureFade);
+  }, []);
   const openPrMenu = (session: Session, e: ReactMouseEvent<HTMLButtonElement>) => {
     const chip = e.currentTarget.getBoundingClientRect();
     setPrMenu({
@@ -393,23 +409,27 @@ export function Sidebar({
   }
 
   return (
-    <nav
-      className="sidebar"
-      aria-label="Sessions"
-      onScroll={() => {
-        setMenu(null);
-        setPrMenu(null);
-      }}
-    >
-      {trust && (
-        <button className="trust-entry" aria-current={trust.selected || undefined} onClick={onShowTrust}>
-          Trust prompt · {trust.label}
+    <nav className="sidebar" aria-label="Sessions">
+      <div
+        ref={scroller}
+        className="sidebar-scroll"
+        data-fade={fade || undefined}
+        onScroll={() => {
+          setMenu(null);
+          setPrMenu(null);
+          measureFade();
+        }}
+      >
+        {trust && (
+          <button className="trust-entry" aria-current={trust.selected || undefined} onClick={onShowTrust}>
+            Trust prompt · {trust.label}
+          </button>
+        )}
+        {body}
+        <button className="add-repo" onClick={onAddRepo}>
+          Add repo…
         </button>
-      )}
-      {body}
-      <button className="add-repo" onClick={onAddRepo}>
-        Add repo…
-      </button>
+      </div>
       {menu && (
         <RowMenu
           at={menu}

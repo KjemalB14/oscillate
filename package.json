@@ -11,9 +11,11 @@
     "e2e:build": "sh e2e/build.sh",
     "e2e": "sh e2e/build.sh && wdio run e2e/wdio.conf.ts",
     "e2e:check": "sh e2e/build.sh && wdio run e2e/wdio.conf.ts --spec e2e/harness.check.ts",
-    "e2e:snapshot": "sh e2e/build.sh && wdio run e2e/wdio.conf.ts --spec e2e/snapshot.check.ts"
+    "e2e:snapshot": "sh e2e/build.sh && wdio run e2e/wdio.conf.ts --spec e2e/snapshot.check.ts",
+    "theme:check": ".claude/scripts/check-theme"
   },
   "dependencies": {
+    "@fontsource-variable/geist": "^5.3.0",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-opener": "^2",
     "@xterm/addon-fit": "0.12.0-beta.301",

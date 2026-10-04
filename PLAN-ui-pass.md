@@ -249,3 +249,35 @@ script, or by hand in the release app from a foreground `claude` in Ghostty.
 
 ---
 <!-- agreed 2026-10-04. Implementation below. -->
+
+## Slice 1 — Look: what was built
+
+- **`src/palette.ts` is the only place a color is named.** It holds both modes' chrome
+  roles and terminal colors as pure data, with no DOM, plus `terminalTheme(mode)`. That
+  gives xterm every color, with the background at `TERMINAL_ALPHA` (0.8) and
+  `allowTransparency` set.
+- **`src/theme.ts` writes the roles as CSS variables on `:root`** (`needsYou` →
+  `--needs-you`), and rewrites them when `prefers-color-scheme` changes. It also writes
+  `--font-ui` and `--font-mono`. `createTerminal` follows the same change for each live
+  terminal, and its new `dispose` unsubscribes. `App.css` names no color except the
+  black of shadows and the scrim. Tints are `color-mix` over a role.
+- **Translucent surfaces are ready for slice 2's glass.** The sidebar is 90% (dark) or
+  94% (light) over `--window`. The trust bar is a tint over the sidebar's surface, not
+  bare over the window. Today the window is opaque in `--window`.
+- **The fonts:**
+  - Geist comes from `@fontsource-variable/geist`.
+  - JetBrains Mono 2.304 is the complete static woff2 faces (regular, bold, italic,
+    bold italic, with OFL) in `src/assets/fonts/jetbrains-mono/`, under its own family
+    name, `JetBrains Mono Bundled`. Fontsource's subsets drop the arrows, box drawing and
+    symbols Claude's TUI draws.
+  - `main.tsx` awaits both faces before the first render, because xterm measures its
+    cell once.
+- **The sidebar scrolls in an inner `.sidebar-scroll`.** It has a thin hover scrollbar,
+  and a mask fades whichever edge hides rows. The row and PR menus stay children of the
+  `<nav>`, outside the mask.
+- **`.claude/scripts/check-theme`** (`npm run theme:check`) is criterion 2's script and
+  criterion 3's unit check. It exits 1 on any failure. Breaking `muted` and
+  `TERMINAL_ALPHA` turned it red.
+
+**Left for slice 2:** the terminal host's 6px left and 4px top padding shows the window,
+not the terminal's tint. Over glass, that will be a visible strip.

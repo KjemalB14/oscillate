@@ -1,0 +1,35 @@
+/* The terminal's face: JetBrains Mono 2.304, complete (fontsource's subsets drop the
+   arrows, box drawing and symbols Claude's TUI draws). OFL; see the folder's OFL.txt.
+   Its own family name, so an installed JetBrains Mono can never stand in for it. */
+
+@font-face {
+  font-family: "JetBrains Mono Bundled";
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url("./assets/fonts/jetbrains-mono/JetBrainsMono-Regular.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "JetBrains Mono Bundled";
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+  src: url("./assets/fonts/jetbrains-mono/JetBrainsMono-Bold.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "JetBrains Mono Bundled";
+  font-style: italic;
+  font-weight: 400;
+  font-display: block;
+  src: url("./assets/fonts/jetbrains-mono/JetBrainsMono-Italic.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "JetBrains Mono Bundled";
+  font-style: italic;
+  font-weight: 700;
+  font-display: block;
+  src: url("./assets/fonts/jetbrains-mono/JetBrainsMono-BoldItalic.woff2") format("woff2");
+}
