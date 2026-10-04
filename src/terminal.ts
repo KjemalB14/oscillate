@@ -5,17 +5,26 @@ import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import "@xterm/xterm/css/xterm.css";
+import { terminalTheme } from "./palette";
+import { currentMode, MONO_FONT, onModeChange } from "./theme";
 
 /** Links open on Cmd+click, as in Ghostty and iTerm. */
 function openOnCmdClick(event: MouseEvent, uri: string) {
   if (event.metaKey) void openUrl(uri);
 }
 
-/** A terminal as every pane has it, opened in `host` and fitted to it. */
-export function createTerminal(host: HTMLElement): { term: Terminal; fit: FitAddon } {
+/**
+ * A terminal as every pane has it, opened in `host` and fitted to it. It follows macOS
+ * between light and dark until `dispose`, which also disposes the terminal.
+ */
+export function createTerminal(host: HTMLElement): {
+  term: Terminal;
+  fit: FitAddon;
+  dispose: () => void;
+} {
   const term = new Terminal({
     allowProposedApi: true, // unicode-graphemes
-    fontFamily: '"JetBrains Mono", ui-monospace, Menlo, monospace',
+    fontFamily: MONO_FONT,
     fontSize: 14,
     cursorBlink: true,
     scrollback: 10_000,
@@ -25,7 +34,9 @@ export function createTerminal(host: HTMLElement): { term: Terminal; fit: FitAdd
     // as Ghostty does. Without it a bare ESC is ambiguous and Esc-Esc doesn't clear.
     vtExtensions: { kittyKeyboard: true },
     linkHandler: { activate: openOnCmdClick }, // OSC 8
-    theme: { background: "#1e1e1e" },
+    // The background is translucent (`TERMINAL_ALPHA`), so the window shows through.
+    allowTransparency: true,
+    theme: terminalTheme(currentMode()),
   });
   const fit = new FitAddon();
   term.loadAddon(fit);
@@ -42,5 +53,13 @@ export function createTerminal(host: HTMLElement): { term: Terminal; fit: FitAdd
     console.warn("WebGL renderer unavailable, using DOM:", e);
   }
   fit.fit();
-  return { term, fit };
+  const unfollow = onModeChange((mode) => (term.options.theme = terminalTheme(mode)));
+  return {
+    term,
+    fit,
+    dispose: () => {
+      unfollow();
+      term.dispose();
+    },
+  };
 }

@@ -81,7 +81,8 @@ Opened 2026-10-04 with `/decide`. The decisions, what was rejected, and the acce
 criteria are in `PLAN-ui-pass.md`. The backlog this came from is in `NOTES.md` → *The
 UI pass, from zeron*. It runs while daily use and MVP 2's `/decide` carry on.
 
-- [ ] **1. Look.** Light and dark tokens that follow macOS, Geist and JetBrains Mono
+- [x] **1. Look.** Shipped 2026-10-04 (below). Items 1 and 3 (by hand, both modes) are
+  still open. Light and dark tokens that follow macOS, Geist and JetBrains Mono
   bundled, the terminal's theme in both modes, and thin scrollbars with edge fades.
 - [ ] **2. Chrome.** Liquid Glass through our own objc2 module, the overlay title bar
   and the pane header, and sidebar collapse and resize.
@@ -100,7 +101,8 @@ UI pass, from zeron*. It runs while daily use and MVP 2's `/decide` carry on.
   - Doubts: Apple Events consent can't be pre-granted, and the binary's path changes on
     every update. If it fails, hand checks stay in a foreground Ghostty session
     (`CLAUDE.md`).
-- [ ] **The reload test flakes in full runs** (`sidebar-order.spec.ts`, item 4, and now
+- [ ] **The reload test flakes in full runs** (2026-10-04: the two reload specs, run alone,
+  failed 2 of 5 on `main` and 2 of 5 on chapter 5's slice 1, `PLAN-ui-pass.md`) (`sidebar-order.spec.ts`, item 4, and now
   `notifications.spec.ts` item 3, which also reloads: 1 of 3 full runs, 2026-10-01). It timed out
   at 30s in 2 of 8 full runs on slice 4's branch, 0 of 4 on `main`, and 2 of 5 in slice
   3 (`NOTES.md`, *Chapter 3, slice 4*). The hang is a WebDriver `execute` across
@@ -184,6 +186,14 @@ gate on merge instead of push. See `NOTES.md` → *Chapter 2 closed*.)
 
 ## Shipped
 
+- 2026-10-04: chapter 5, slice 1: the look.
+  - `src/palette.ts` names every color: light and dark chrome roles, and the
+    terminal's full theme at 80% alpha. Both follow macOS live.
+  - Geist and the complete JetBrains Mono are bundled.
+  - The sidebar has a thin scrollbar and edge fades.
+  - Item 2 passes under `.claude/scripts/check-theme`, which breaks turned red. Items 4
+    and 5 pass under `npm run e2e`.
+  - Items 1 and 3, the light and dark looks by hand, are open.
 - 2026-10-01: chapter 4, slice 2: the PR link.
   - `pr_links.rs` reads `children[kind=pr]` from each job's `state.json`, and any miss
     means no chip.

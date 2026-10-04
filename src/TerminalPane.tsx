@@ -44,7 +44,7 @@ export function TerminalPane({ session, label, visible, attempt, onStatus, onRea
 
   // The terminal: one per pane, for the pane's whole life.
   useEffect(() => {
-    const { term: t, fit: f } = createTerminal(host.current!);
+    const { term: t, fit: f, dispose } = createTerminal(host.current!);
     term.current = t;
     fit.current = f;
 
@@ -67,7 +67,7 @@ export function TerminalPane({ session, label, visible, attempt, onStatus, onRea
       input.dispose();
       binary.dispose();
       resize.dispose();
-      t.dispose();
+      dispose();
       term.current = null;
       fit.current = null;
     };

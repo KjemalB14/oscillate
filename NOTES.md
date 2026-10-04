@@ -9,6 +9,35 @@ Newest entries at the top.
 
 ---
 
+## 2026-10-04 — Chapter 5, slice 1: the look
+
+What was built is in `PLAN-ui-pass.md` → *Slice 1 — Look: what was built*. These are
+the choices made along the way, with what each one rejected:
+- **JetBrains Mono comes from its own release, not fontsource.**
+  `@fontsource-variable/jetbrains-mono` splits the font into unicode-range subsets.
+  None of them carries the arrows (only ↑ and ↓), the box drawing, or symbols like
+  `⎿` and `●` that Claude's TUI draws, so those would have fallen back to Menlo. The
+  four static woff2 faces from JetBrains' v2.304 release are about 380 KB in all. Geist
+  stays on fontsource, because the chrome draws plain text.
+- **It has its own family name, `JetBrains Mono Bundled`.** The author has JetBrains
+  Mono installed in `~/Library/Fonts`. Under the real name, a missing bundle would be
+  hidden by the installed copy, and criterion 4 couldn't tell the two apart.
+- **The sidebar's fade is a mask on an inner scroller, not on the `<nav>`.** The row
+  and PR menus are `position: fixed` children of the nav, so a mask there would fade
+  or clip them. **Rejected:** portalling the menus to `body`. It would move them out of
+  `nav[aria-label="Sessions"]`, which `add-repo.spec.ts` item 10 counts menu items
+  inside.
+- **Colored bars sit on the sidebar's surface, not bare over the window.** The check
+  found that the trust bar's 12% amber, alone over a white backdrop in dark mode, gave
+  1.67:1. Over glass the window can be anything, so every tint goes on a surface.
+- **Light mode's amber and red went darker** (`#7a4600`, `#9e1c1c`), and its sidebar
+  went from 90% to 94%. Before that, needs-you text on a selected row failed 4.5:1 over
+  a black backdrop.
+- **The terminal host's padding shows the window, not the terminal's tint.** That's
+  invisible while the window is opaque. Slice 2 has to deal with it.
+
+---
+
 ## 2026-10-04 — The UI pass, from zeron
 
 The author wants the app to look and feel better now that MVP 1 works, drawing heavily
