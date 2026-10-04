@@ -281,3 +281,14 @@ script, or by hand in the release app from a foreground `claude` in Ghostty.
 
 **Left for slice 2:** the terminal host's 6px left and 4px top padding shows the window,
 not the terminal's tint. Over glass, that will be a visible strip.
+
+**Slice 1's e2e (2026-10-04):**
+- `e2e/fonts-bundled.spec.ts` (by `e2e-author`) passes 4 of 4. Pointing the regular
+  face at a missing file turned claim 3 red (the file served 631 bytes). Claim 2
+  stayed green, because the other three faces still load. It only goes red if every
+  face is missing.
+- The first full run was 88 passed and 2 failed: the two known reload flakes,
+  `sidebar-order` item 4 and `notifications` item 3, each a 30s timeout. The question
+  was whether awaiting the fonts before the first render made them worse. Running the
+  two specs alone five times each failed 2 of 5 on `main`'s code and 2 of 5 on this
+  branch. That's the same rate, so the slice doesn't change the flake.
