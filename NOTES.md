@@ -9,6 +9,32 @@ Newest entries at the top.
 
 ---
 
+## 2026-10-04 — Slice 2's glass spike
+
+The results are in `PLAN-ui-pass.md` → *Slice 2 — the glass spike*.
+- **`NSGlassEffectView` is public AppKit in the macOS 26 SDK** (`objc2-app-kit` 0.3.2
+  binds it), not the private API the PLAN calls it. The private part is the transparent
+  window. The module still checks the class at runtime, so an older macOS gets the
+  opaque fallback.
+- **The cheapest sibling placement worked first time:** the content view's bottom
+  subview, under wry's WKWebView. Reparenting wasn't needed.
+- **Judging glass needs something busy behind the window.** The author's wallpaper is
+  black, and Stage Manager hides every other app's window behind the front one. A
+  generated stripe-and-text pattern in Preview, with Stage Manager off for the shots
+  (`defaults write com.apple.WindowManager GloballyEnabled`, which applies at once), made
+  the blur measurable by pixel sampling.
+- **WebGL is the blocker, not the glass.** In light mode xterm's WebGL canvas comes out
+  flat white over glass at any alpha, while the DOM renderer shows the backdrop.
+  Declaring the context straight-alpha didn't help. Two guesses are left unchecked: the
+  canvas's own clear color, or the atlas's glyph alpha. **Rejected for now:** patching
+  xterm's addon in place. It's a pinned beta (`CLAUDE.md`), and a local patch would
+  need re-checking on every bump.
+- **Most of the look's effect lives in the alphas.** At 90% and 80% the glass is barely
+  there. At 55% it's the Ghostty look. The palette's contrast guarantees were made at
+  the high values.
+
+---
+
 ## 2026-10-04 — Slice 1's hand items: the terminal was never translucent
 
 The results are in `PLAN-ui-pass.md` → *Slice 1's hand items*. What it cost to find out,

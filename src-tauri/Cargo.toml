@@ -19,7 +19,8 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+# `macos-private-api`: the transparent window the glass shows through (`glass.rs`).
+tauri = { version = "2", features = ["macos-private-api"] }
 tauri-plugin-opener = "2"
 # "Add repo…"'s folder picker, called from Rust only.
 tauri-plugin-dialog = "2"
@@ -40,6 +41,16 @@ objc2 = "0.6"
 objc2-foundation = "0.3"
 objc2-user-notifications = "0.3"
 block2 = "0.6"
+# The glass (`glass.rs`); already in Cargo.lock through tao.
+objc2-app-kit = { version = "0.3", default-features = false, features = [
+    "std",
+    "NSGlassEffectView",
+    "NSGraphics",
+    "NSResponder",
+    "NSView",
+    "NSWindow",
+    "objc2-core-foundation",
+] }
 
 [features]
 e2e = ["dep:tauri-plugin-wdio", "dep:tauri-plugin-wdio-webdriver"]

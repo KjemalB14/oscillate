@@ -1,6 +1,7 @@
 mod attention;
 mod claude;
 mod endsession;
+mod glass;
 mod newsession;
 mod notifications;
 mod poll;
@@ -168,6 +169,12 @@ fn open_pr(app: AppHandle, model: State<'_, SessionModel>, href: String) -> Resu
     app.opener().open_url(href, None::<&str>).map_err(|e| e.to_string())
 }
 
+/// Whether the glass is behind the window; the page paints it opaque if not.
+#[tauri::command]
+fn glass_state(glass: State<'_, glass::Glass>) -> bool {
+    glass.0
+}
+
 #[tauri::command]
 fn repos_list(repos: State<'_, repos::Repos>) -> Vec<String> {
     repos.list()
@@ -230,6 +237,8 @@ pub fn run() {
             app.manage(SessionModel { poller, poll_now, _watcher: watcher });
             pty::watch(app.handle().clone());
             app.set_menu(menu(app.handle())?)?;
+            let window = app.get_webview_window("main").ok_or("no main window")?;
+            app.manage(glass::apply(&window));
             Ok(())
         })
         .on_menu_event(|app, event| {
@@ -260,6 +269,7 @@ pub fn run() {
             repos_remove,
             set_visible_session,
             open_pr,
+            glass_state,
             e2e_notification_response,
             pty::pty_spawn,
             pty::pty_write,

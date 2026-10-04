@@ -129,6 +129,10 @@ zeron, from tokens to a ⌘K palette. Its decisions and criteria are in `PLAN-ui
   `npm run theme:check` measures contrast, and checks that xterm can parse every
   terminal color. Its hand items passed after a fix. **The terminal is opaque**
   (`TERMINAL_ALPHA = 1`) until slice 2 makes dim text read under translucent WebGL.
+- **Slice 2, *Chrome*, is open on `slice2-chrome`, which isn't merged.** Its glass spike
+  is built (`glass.rs`), and the glass composes behind the chrome. The see-through
+  terminal fails on WebGL in light mode. It goes back to `/decide`
+  (`PLAN-ui-pass.md`, *Slice 2 — the glass spike*).
 
 - Dev: `npm run tauri dev`. Release binary: `npx tauri build --no-bundle`.
 - Install: quit the app, then `npx tauri build` and `ditto

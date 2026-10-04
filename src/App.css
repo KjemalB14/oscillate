@@ -14,6 +14,14 @@ body,
   overflow: hidden;
 }
 
+/* With the glass behind the window (`glass.rs`), the page paints no window of its own:
+   the surfaces above tint the glass. Without it, the window stays opaque. */
+:root[data-glass="on"],
+:root[data-glass="on"] body,
+:root[data-glass="on"] #root {
+  background: transparent;
+}
+
 .app {
   display: flex;
   height: 100%;
@@ -39,12 +47,19 @@ body,
 }
 
 /* The padding is painted in the terminal's background, so no strip of window shows
-   between the sidebar and the cells. */
+   between the sidebar and the cells. The host is the one layer that paints it: xterm 6
+   paints it again on two of its own elements, which would stack a translucent one to
+   ~96%. */
 .terminal-host {
   flex: 1;
   min-height: 0;
   padding: 4px 0 0 6px;
   background: var(--terminal-bg);
+}
+
+.terminal-host .xterm,
+.terminal-host .xterm-scrollable-element {
+  background-color: transparent !important;
 }
 
 .pane-status {

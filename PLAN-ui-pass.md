@@ -324,3 +324,43 @@ items below while the terminal is opaque. A translucent one needs the layering i
   was whether awaiting the fonts before the first render made them worse. Running the
   two specs alone five times each failed 2 of 5 on `main`'s code and 2 of 5 on this
   branch. That's the same rate, so the slice doesn't change the flake.
+
+## Slice 2 — the glass spike: what it proved and hasn't (2026-10-04)
+
+Built on `slice2-chrome`:
+- `src-tauri/src/glass.rs` puts an `NSGlassEffectView` (Regular, radius 0, autoresizing)
+  under the webview as the content view's bottom subview.
+- The window is `transparent`, with `macOSPrivateApi`.
+- `glass_state` tells the page, and `data-glass="on"` stops it painting the window.
+- `OSCILLATE_GLASS=off`, or a missing class, keeps the window opaque with one stderr line.
+- The terminal host is now the only layer that paints the terminal's background
+  (xterm's own two are made transparent).
+
+Seen in `tauri dev` over a striped test pattern, with Stage Manager off for the shots
+(screenshots in `~/Documents/oscillate-hand-checks/2026-10-04-slice2-spike/`):
+- **The glass composes with the transparent WKWebView: go.** The empty pane shows the
+  pattern blurred, and so does the sidebar, faintly at 90%.
+- **Criterion 7 passes by hand.** With `OSCILLATE_GLASS=off`, stderr has exactly one
+  glass line, and the pane is a uniform `--window` (11,11,12) over the same pattern.
+- **A see-through terminal on WebGL: no-go as it stands.**
+  - In dark, the pattern shows through: barely at 80%, and clearly at 55%.
+  - In light, the WebGL terminal is a flat 255 white at any alpha, and dim text is at
+    about 7%.
+  - The DOM renderer shows the pattern through the light terminal (223–253) and reads
+    dim text, undimmed.
+  - Forcing the WebGL context to `premultipliedAlpha: false` changed nothing.
+- **The alphas will need to come down.** The look criterion 6 describes appeared at 55%
+  for both the sidebar and the terminal. `check-theme`'s contrast over black and white
+  backdrops hasn't been run at those values.
+
+**Not proved:** criterion 6 in a release build, the drag and the traffic lights (the
+title bar isn't touched yet), the DOM renderer's cost (`bench-flood`), and criterion 22's
+budget with the glass on.
+
+**So the chapter goes back to `/decide`**, as *Still open* says, for the terminal only.
+The glass behind the chrome works. The question is what the terminal does:
+- the DOM renderer, priced by `bench-flood`;
+- an opaque terminal beside glass chrome, which this PLAN rejected (*A glass sidebar
+  beside an opaque terminal*), now with evidence;
+- or a fix to xterm's WebGL transparency, first as a minimal repro for upstream.
+

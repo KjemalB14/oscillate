@@ -14,9 +14,11 @@
       {
         "title": "Oscillate",
         "width": 1100,
-        "height": 720
+        "height": 720,
+        "transparent": true
       }
     ],
+    "macOSPrivateApi": true,
     "security": {
       "csp": null
     }

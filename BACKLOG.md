@@ -86,9 +86,10 @@ UI pass, from zeron*. It runs while daily use and MVP 2's `/decide` carry on.
   scrollbars with edge fades. Items 1 and 3 passed by hand the same day, after a fix:
   the terminal is opaque until slice 2 (`NOTES.md`, *Slice 1's hand items*).
 - [ ] **2. Chrome.** Liquid Glass through our own objc2 module, the overlay title bar
-  and the pane header, and sidebar collapse and resize. Its spike now has two questions:
-  the glass, and dim text that reads in a translucent WebGL terminal
-  (`PLAN-ui-pass.md`, *Still open*).
+  and the pane header, and sidebar collapse and resize. **The spike is in**
+  (`slice2-chrome`): the glass composes, and the fallback works. A see-through terminal
+  fails on WebGL in light mode, so the terminal goes back to `/decide`
+  (`PLAN-ui-pass.md`, *Slice 2 — the glass spike*).
 - [ ] **3. Rows.** Two-line rows, the moving indicator, the time from `updatedAt`, and
   group headers with GitHub avatars.
 - [ ] **4. Motion.** One motion catalog, and frosted popovers.
