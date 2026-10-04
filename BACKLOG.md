@@ -102,6 +102,12 @@ is complete.**
   since 2026-09-08, made the daemon claim a spare process for it, and the pane showed a
   month-old idle conversation (`NOTES.md`, *First daily use*). Decide first: whether that's
   wanted, or a done row should open to something lighter.
+- [ ] **Shift+Enter in the pane sends the prompt instead of a newline** (2026-10-04, daily
+  use). In Ghostty it gives a newline in Claude. The pane runs xterm.js 6.1.0-beta with
+  `kittyKeyboard: true`, so the guess is that it sends `\r` where Claude expects a kitty
+  encoding. That's unverified. Next: log the bytes for Shift+Enter in the pane and in
+  Ghostty, as chapter 1 did for Esc (`NOTES.md`, chapter 1 slice 2), before changing
+  anything.
 - [ ] **A worktree session groups as its own repo.** `src/groups.ts` groups by the `cwd`
   basename. So a session in `oscillate/.claude/worktrees/ui-backlog` showed as a
   `ui-backlog` group, with its own "+", instead of under `oscillate` (2026-10-04, daily
