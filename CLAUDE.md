@@ -121,8 +121,9 @@ decisions and what it didn't prove are in `NOTES.md` → *Chapter 3 closed*.
 **Next: MVP 2** (`BACKLOG.md` → *Later*). Nothing is open. Pick what comes first from
 daily use, and open it with `/decide`. `/decide` was started on 2026-10-04 and paused
 for a few more sessions of use. The evidence so far is in `NOTES.md` → *First daily use*.
-A UI pass drawn from zeron is queued beside it (`BACKLOG.md` → *The UI pass*), and it
-opens with its own `/decide`.
+**Chapter 5, *The UI pass*, is open** beside it (2026-10-04): five slices drawn from
+zeron, from tokens to a ⌘K palette. Its decisions and criteria are in `PLAN-ui-pass.md`.
+No slice has started.
 
 - Dev: `npm run tauri dev`. Release binary: `npx tauri build --no-bundle`.
 - Install: quit the app, then `npx tauri build` and `ditto
