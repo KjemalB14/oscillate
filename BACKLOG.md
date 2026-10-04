@@ -102,6 +102,21 @@ is complete.**
   since 2026-09-08, made the daemon claim a spare process for it, and the pane showed a
   month-old idle conversation (`NOTES.md`, *First daily use*). Decide first: whether that's
   wanted, or a done row should open to something lighter.
+- [ ] **A worktree session groups as its own repo.** `src/groups.ts` groups by the `cwd`
+  basename. So a session in `oscillate/.claude/worktrees/ui-backlog` showed as a
+  `ui-backlog` group, with its own "+", instead of under `oscillate` (2026-10-04, daily
+  use). Decide first:
+  - How a worktree's repo is found: from the `.claude/worktrees/<name>` path, or from
+    `git rev-parse --git-common-dir`, which invariant 1 doesn't allow today.
+  - How the row shows the worktree's name.
+  - Where the group's "+" starts a new session.
+- [ ] **A worktree page: list each repo's worktrees and delete the finished ones**
+  (2026-10-04, daily use). Decide first:
+  - Whether `claude rm` already removes a job's worktree.
+  - If not, whether the app may run `git worktree remove`, which invariant 1 doesn't
+    allow today.
+  - What makes a worktree safe to delete. Never `--force-remove-worktree`, and unpushed
+    work blocks it, as `rm`'s refusal does.
 - [ ] **Composer box in the thread view** for plain replies. Anything that opens a
   dialog still brings the terminal forward.
 - [ ] **Keyboard switching.** Cmd+1–9, Cmd+N, Cmd+[ / ].
