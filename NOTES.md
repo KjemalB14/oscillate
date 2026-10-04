@@ -49,6 +49,10 @@ the module docs under `crates/ui/src`. Nothing was run. The items are in `BACKLO
   transparent window and `macOSPrivateApi`. The avatar would be the app's first
   unprompted network fetch.
 
+**Opened the same day as chapter 5** (`PLAN-ui-pass.md`). `/decide` changed two of
+the calls above. Light and dark both ship, following macOS, because the author's
+Ghostty is light. Liquid Glass and GitHub avatars are in.
+
 **Running it beside daily use:**
 - **Daily use runs the installed `/Applications` app, and UI work runs `tauri dev` on
   a branch.** Both poll the same daemon. Clicking the same session in both would be
