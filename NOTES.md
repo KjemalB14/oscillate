@@ -9,6 +9,38 @@ Newest entries at the top.
 
 ---
 
+## 2026-10-04 — First daily use: the in-progress session wasn't one the app can open
+
+This is the first daily-use evidence since MVP 1. The author opened the installed app
+(chapter 4's final build) expecting to see their in-progress `clipped` work. They
+clicked rows in both `clipped` and `clipped-overlap`, and neither showed the session
+running. The app behaved as designed. `claude agents --json --all`,
+`~/.claude/sessions/*.json` and `~/.claude/daemon.log` showed why:
+- **The in-progress session is a terminal-tab one.** `multi-project-implementation` in
+  `clipped-overlap` is an interactive `claude`, `busy`, which has been running in a
+  terminal tab since 2026-09-25. Its row is dimmed, as the locked decision says, and
+  reads `run /bg to open here` (`src/Sidebar.tsx`). The author still expected to see it
+  running. Either the hint went unread or it doesn't say enough.
+- **The `clipped` row was a job that finished on 2026-09-08** (`ade5c70a`, `done`, and its
+  `timeline.jsonl` was last written that day). The click attached it, and the daemon
+  revived it in a spare process (`daemon.log`: `bg claimed-spare ade5c70a (fleet)`).
+  `startedAt` became the click time. The pane showed a month-old idle conversation.
+- **A `/bg`'d terminal stays behind as a parked shell.** Its session record reads
+  `"status":"shell","parkedJobId":"<job id>"`. The daemon lists only the job, which is
+  the one path from a terminal tab into the app today.
+- **In the same hour, the daemon restarted itself for the 2.1.289 upgrade**
+  (`cause=upgrade`). It took over the live job and respawned nothing. That's unrelated
+  to the above, but it's the first upgrade seen while the app was running.
+
+What it bears on:
+- MVP 2's first chapter isn't chosen. `/decide` is paused while the author uses the
+  app for a few more sessions.
+- So far the evidence says work that lives in a terminal tab is invisible in Oscillate,
+  except as a dimmed row. The thread view (`BACKLOG.md` → *Later*) is the item that
+  covers terminal-tab sessions.
+
+---
+
 ## 2026-10-01 — Chapter 4 closed: it tells you when it needs you
 
 Both slices shipped, and all 17 items passed: 1–9 and 11–15 under `npm run e2e`, each
