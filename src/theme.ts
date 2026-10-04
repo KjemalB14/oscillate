@@ -1,4 +1,4 @@
-import { cssName, palettes, type Mode } from "./palette";
+import { cssName, palettes, terminalTheme, type Mode } from "./palette";
 
 /** The chrome's typefaces, both bundled (`src/fonts.css`). */
 export const UI_FONT = '"Geist Variable", -apple-system, BlinkMacSystemFont, sans-serif';
@@ -23,6 +23,8 @@ function applyChrome(mode: Mode) {
   for (const [role, color] of Object.entries(palettes[mode].chrome)) {
     root.style.setProperty(`--${cssName(role)}`, color);
   }
+  // The terminal's own background, for the host's padding around the cell grid.
+  root.style.setProperty("--terminal-bg", terminalTheme(mode).background!);
   root.style.setProperty("--font-ui", UI_FONT);
   root.style.setProperty("--font-mono", MONO_FONT);
   root.dataset.mode = mode;

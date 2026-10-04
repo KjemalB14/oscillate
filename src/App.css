@@ -38,10 +38,13 @@ body,
   visibility: hidden;
 }
 
+/* The padding is painted in the terminal's background, so no strip of window shows
+   between the sidebar and the cells. */
 .terminal-host {
   flex: 1;
   min-height: 0;
   padding: 4px 0 0 6px;
+  background: var(--terminal-bg);
 }
 
 .pane-status {

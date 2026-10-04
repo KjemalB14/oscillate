@@ -9,6 +9,40 @@ Newest entries at the top.
 
 ---
 
+## 2026-10-04 — Slice 1's hand items: the terminal was never translucent
+
+The results are in `PLAN-ui-pass.md` → *Slice 1's hand items*. What it cost to find out,
+and what was chosen:
+- **xterm drops colors it can't parse, silently.** `css.toColor` reads hex and comma
+  `rgba()`. Anything else goes through a canvas, which throws when alpha < 255, and
+  the theme keeps xterm's default. So slice 1's terminal was opaque black in both
+  modes, and nothing said so. Dark mode looked fine, which hid it. The first light
+  screenshot showed it.
+- **A check that parses with its own parser proves the data, not the consumer.**
+  `check-theme` was green throughout. It now also asserts the consumer's format.
+- **Translucent WebGL breaks dim text.** It was measured on the same status line:
+  - WebGL with `allowTransparency`: 239 on 255, about 7% ink.
+  - WebGL opaque: 176, #666 at 50%, as in Ghostty.
+  - The DOM renderer with transparency: 102. It reads, but SGR 2 isn't dimmed.
+  - **Chosen:** an opaque terminal now, with one switch (`TERMINAL_ALPHA`) driving the
+    theme and `allowTransparency`.
+  - **Rejected:** the DOM renderer now. It's slower, and chapter 1 chose WebGL for the
+    flood test. Also rejected: shipping translucent WebGL with an invisible status line
+    until slice 2.
+- **xterm 6 paints the background twice**, on `.xterm` and `.xterm-scrollable-element`.
+  A translucent background composites to about 96%, not 80%. Slice 2 must leave
+  exactly one painted layer (`e2e/layers.check.ts` prints them).
+- **HMR fools experiments.** Editing `terminal.ts` hot-updated the pane without
+  recreating the terminal. The attach pid didn't change, and the first "transparency
+  off" run measured the old code. Touching `palette.ts` forces a full reload; check
+  that the attach pid changed.
+- **A `--bg` job can drive the window.** macOS asks on behalf of the app hosting the
+  job's attach, here the installed Oscillate.app. Granting it Accessibility and Screen
+  Recording was enough for `drive-window`, `screencapture` and the System Events
+  appearance switch. Apple Events to System Events didn't prompt.
+
+---
+
 ## 2026-10-04 — Chapter 5, slice 1: the look
 
 What was built is in `PLAN-ui-pass.md` → *Slice 1 — Look: what was built*. These are

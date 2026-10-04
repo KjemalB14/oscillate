@@ -169,6 +169,14 @@ wants it to look and feel like zeron while daily use and MVP 2's `/decide` carry
   background, and whether xterm's WebGL renderer draws a translucent background
   correctly. Slice 2 finds out first. If it fails, the fallback is opaque, and the
   chapter comes back to `/decide`. It doesn't silently switch to vibrancy.
+  - **Half of it is answered (2026-10-04, slice 1's hand items).** WebGL draws a
+    translucent background once the color is hex. But under `allowTransparency` it
+    draws dim (SGR 2) glyphs at about 7% instead of 50%, and Claude's status line
+    vanishes in light mode. The DOM renderer reads but doesn't dim, and costs
+    speed. So the terminal is opaque until slice 2 finds dim text that reads in a
+    translucent terminal: a WebGL fix, or the DOM renderer priced with
+    `bench-flood`. If neither works, the see-through terminal comes back to
+    `/decide`, and the glass can still sit behind the chrome.
 - **Whether the avatar fetch needs a user-visible switch.** It's left out until daily
   use asks for one.
 - **The exact token values.** Slice 1 picks them against criterion 2's script.
@@ -280,7 +288,31 @@ script, or by hand in the release app from a foreground `claude` in Ghostty.
   `TERMINAL_ALPHA` turned it red.
 
 **Left for slice 2:** the terminal host's 6px left and 4px top padding shows the window,
-not the terminal's tint. Over glass, that will be a visible strip.
+not the terminal's tint. Over glass, that will be a visible strip. *(Fixed with the hand
+items below while the terminal is opaque. A translucent one needs the layering in
+`NOTES.md`.)*
+
+**Slice 1's hand items (2026-10-04, `tauri dev`, driven from a `--bg` job):**
+- **Item 1 failed first.** Light mode showed dark text on a black terminal. The cause
+  was that xterm parses only hex and comma `rgba()`. Our `rgb(r g b / 80%)` background
+  fell back to xterm's opaque black, in both modes, from the start, and so did the
+  selection and scrollbar colors. `check-theme` passed, because it parsed with its own
+  parser. It now fails any value xterm can't read. Turning the conversion off turned
+  8 values red.
+- **The dim-text bug found on the way** is in *Still open*. The terminal is now opaque:
+  `TERMINAL_ALPHA = 1`, and `allowTransparency` follows it. **Criterion 3's "about 80%
+  alpha" is deferred to slice 2.**
+- **After the fix, item 1 passes.** Light → Dark → Light with two panes open. Each
+  screenshot, taken as the switch returned, shows the chrome and the terminal in the
+  new mode, with no reload. The attach pids (38596, 38694) were the same across both
+  switches. The screenshots are in `~/Documents/oscillate-hand-checks/2026-10-04-slice1/`,
+  outside the repo because they show session transcripts.
+- **Item 3 passes in light, and is conditional in dark.**
+  - Claude's diff colors read in both modes.
+  - In light, the status line's dim text is #666 at 50% (176 on 251), as in Ghostty.
+  - In dark, Claude's muted grays are about 1.7–1.9:1. That's because the author's
+    Claude theme is `light`, so the colors were chosen for a light background
+    (`BACKLOG.md`, *Claude's own grays in dark mode*).
 
 **Slice 1's e2e (2026-10-04):**
 - `e2e/fonts-bundled.spec.ts` (by `e2e-author`) passes 4 of 4. Pointing the regular
