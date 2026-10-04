@@ -93,6 +93,15 @@ is complete.**
 - [ ] **Thread view.** A read-only, custom-formatted rendering of the session transcript
   (`~/.claude/projects/<repo>/<session-id>.jsonl`), toggled against the terminal. It also
   works for terminal-tab sessions.
+- [ ] **A terminal-tab row looks like the session you want, and opens nothing.** In
+  first daily use, the author clicked the dimmed `clipped-overlap` row expecting its
+  in-progress session. The row's `run /bg to open here` didn't head that off (`NOTES.md`,
+  *First daily use*). Decide first: a clearer hint, or the thread view (above) for these
+  rows.
+- [ ] **A click on a long-finished job revives it silently.** Attaching `ade5c70a`, done
+  since 2026-09-08, made the daemon claim a spare process for it, and the pane showed a
+  month-old idle conversation (`NOTES.md`, *First daily use*). Decide first: whether that's
+  wanted, or a done row should open to something lighter.
 - [ ] **Composer box in the thread view** for plain replies. Anything that opens a
   dialog still brings the terminal forward.
 - [ ] **Keyboard switching.** Cmd+1–9, Cmd+N, Cmd+[ / ].
