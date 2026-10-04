@@ -9,6 +9,63 @@ Newest entries at the top.
 
 ---
 
+## 2026-10-04 — The UI pass, from zeron
+
+The author wants the app to look and feel better now that MVP 1 works, drawing heavily
+on zeron, and wants to do it while daily use goes on. This time zeron's UI was read, not
+just its README: the landing screenshots (`apps/landing/public/assets/`), its feature
+inventory (`docs/research/feature-inventory.md` §1.3–1.12), `docs/theme-system.md`, and
+the module docs under `crates/ui/src`. Nothing was run. The items are in `BACKLOG.md` →
+*The UI pass, beside MVP 2*.
+
+**What zeron's look is made of:**
+- **Near-black monochrome:** `#0a0a0a`, an oklch neutral scale, white hairlines,
+  Geist and Geist Mono. The terminal bg, fg and ANSI16 belong to the theme, not the
+  renderer.
+- **The window:** an overlay title bar, with the traffic lights inset over the
+  sidebar, then the sidebar toggle, back/forward and "+". The selected session's title
+  sits in the title bar.
+- **Sidebar rows are three-line cards:** `repo @ device` with a relative time, the
+  title, then the agent glyph and branch. The selected one is a filled card with
+  rounded corners.
+- **A motion catalog in plain CSS**, with no animation library. Floats are frosted
+  (`backdrop-filter`) on one shared surface. Scroll edges fade with a mask.
+- **The empty state is the new-session canvas**, with a composer pill in the main area.
+
+**Taken and left alone:**
+- **Rows stay still.** View-transition re-sorts (zeron's 260ms glide) only matter with
+  an attention sort, which chapter 4 rejected. Motion here is entrances, menus and the
+  working indicator, never row order.
+- **No theme catalog or VS Code import.** Zeron ships 30 variants. One good dark ramp is
+  the whole job for an app with one user. A light theme is left for daily use to ask
+  for.
+- **No message rail, transcript bubbles or diff sidebar.** Those belong to a thread
+  view, which is MVP 2's to decide, not a restyle.
+- **No branch on rows yet.** `claude agents --json` has no branch field (it lists `cwd`,
+  `id`, `kind`, `name`, `sessionId`, `startedAt` and `state`). Reading `.git/HEAD` in
+  each `cwd` would be a new source of session state, against invariant 2's spirit. The
+  existing *Branch name and PR status colors* item keeps it.
+- **Sidebar vibrancy and a repo avatar are "decide first".** Vibrancy needs a
+  transparent window and `macOSPrivateApi`. The avatar would be the app's first
+  unprompted network fetch.
+
+**Running it beside daily use:**
+- **Daily use runs the installed `/Applications` app, and UI work runs `tauri dev` on
+  a branch.** Both poll the same daemon. Clicking the same session in both would be
+  two attaches on one session, against invariant 3 across processes, which nothing
+  guards. In dev, open only sessions the installed app isn't showing, or point dev at
+  the fake with `OSCILLATE_CLAUDE_BIN`.
+- **The e2e specs don't select on CSS classes.** They use `role`, `aria-label`, visible
+  text and `.xterm`. A restyle that keeps those keeps the merge gate green. Renaming a
+  label is a spec change, which goes to `e2e-author`.
+- **Seeing the result needs a foreground `claude` in Ghostty** (`drive-window`
+  screenshots). A `--bg` job can write the CSS but can't look at it.
+- **Conflicts:** an MVP 2 chapter that touches `Sidebar.tsx` (the terminal-tab hint,
+  the thread view) will collide with the row restyle. Land tokens and type first: they
+  live in `App.css` and `terminal.ts` and touch nothing else.
+
+---
+
 ## 2026-10-04 — First daily use: the in-progress session wasn't one the app can open
 
 This is the first daily-use evidence since MVP 1. The author opened the installed app

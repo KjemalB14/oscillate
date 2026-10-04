@@ -136,6 +136,85 @@ is complete.**
   that reloads the page and sees the current list without the fake changing would
   make it deliberate. `e2e-author` writes it.
 
+## Later — the UI pass, beside MVP 2
+
+These are looks and feel only, taken from zeron's screenshots, its feature inventory and
+its UI crate. None of them changes what the app does. It runs as its own chapter, opened
+with `/decide` like any other, and can run while daily use and MVP 2's `/decide` carry
+on. The reasoning, what was rejected, and how to run it beside daily use are in
+`NOTES.md` → *The UI pass, from zeron*. The groups are in rough order, from cheapest to
+most work.
+
+**Look: tokens and type (CSS only)**
+- [ ] **One neutral dark scale, not four ad-hoc greys.** Zeron is near-black and
+  monochrome (`#0a0a0a`, an oklch neutral ramp, white hairlines at low alpha). Ours is
+  `#1e1e1e` / `#252628` / `#333538` in `src/App.css`. Redo `:root` as a ramp: ground,
+  raised, hover, selected, hairline, text, muted, faint. Keep the five state colors,
+  tuned to the new ground.
+- [ ] **The terminal owns a whole theme, not just its background.** `src/terminal.ts`
+  sets only `background`. Give xterm `foreground`, `cursor`, `selectionBackground` and
+  all 16 ANSI colors, from the same ramp, so Claude's TUI and the chrome around it read
+  as one surface. Hand check: Claude's diff colors and dim text stay readable.
+- [ ] **Typography.** Bundle Geist and Geist Mono (OFL, as zeron does), or decide that
+  SF Pro with JetBrains Mono stays. One size scale for the chrome (11/12/13/15), with
+  tabular numbers for counts and times.
+- [ ] **Thin or hidden scrollbars, and edge fades on the sidebar.** A CSS mask fades
+  rows at whichever edge hides more, as zeron's sidebar and palettes do.
+
+**Rows and groups (Sidebar.tsx, presentation only; rows still never move)**
+- [ ] **A richer session row.** Zeron's row is a rounded card on three lines: a muted
+  meta line (`repo · 6h`), the title, and a line with the agent glyph and branch.
+  Ours: the meta line from `cwd` and a relative time from `startedAt` (a ticking
+  "6h", not a timestamp), the name, then `waitingFor` or the PR chip. A selected row
+  gets a filled card with 8px corners. Keep every role, `aria-label` and visible
+  string that `e2e/` selects on.
+- [ ] **A working indicator that moves.** A `working` dot is a static blue circle today.
+  Use a small pulse or spinner (zeron's is a 750ms phase wave), and a slow breathe for
+  needs you. Static under `prefers-reduced-motion`.
+- [ ] **Group headers like zeron's:** a folder glyph, the repo name in the text color
+  (not muted), then the count, with the chevron and "+" right-aligned and shown on
+  hover.
+- Two items above get their look in this pass but stay decided where they are. One is
+  *A terminal-tab row looks like the session you want*, which the restyle mustn't
+  settle by accident. The other is *Unseen markers*, drawn as a small dot beside the
+  time, as zeron draws it.
+
+**Motion (CSS only)**
+- [ ] **One motion catalog, in CSS variables.** It comes from zeron's inventory: popover
+  `menu-in` 140ms scale .96 → 1 and translateY −2; dialog-in 180ms; fade-in 500ms
+  `cubic-bezier(0.16,1,0.3,1)`; fade-quick 150ms; 200ms ease-out for size changes.
+  Apply it to the row menu, the PR menu, the remove confirm and the new-session box.
+  Respect reduced motion.
+- [ ] **Frosted popovers.** The row menu, the PR menu and the new-session box get a
+  `backdrop-filter` blur, a hairline border and a soft shadow. Zeron puts every float
+  on one frosted surface.
+
+**Window chrome (Tauri config plus a header component)**
+- [ ] **A unified title bar.** Use `titleBarStyle: "Overlay"` with a hidden title, so
+  the traffic lights sit inset over the sidebar, as in zeron. The pane gets a 44px
+  header: the session's name, then `repo` muted, state, and PR chip, with
+  `data-tauri-drag-region` on the empty space. Decide first: how this header relates to
+  the bottom `pane-status` bar.
+- [ ] **Sidebar vibrancy.** Use a native macOS material behind the sidebar only, while
+  the terminal stays opaque. It needs a transparent window, so it costs
+  `macOSPrivateApi`. Decide first: whether that trade is worth it. Text contrast must
+  hold over any wallpaper (zeron thickens the tint until it does).
+- [ ] **A collapsible, resizable sidebar.** 208–400px, default 256, persisted, with
+  200ms width easing. Double-click the edge to reset. A shortcut toggles it. This
+  overlaps *Keyboard switching* above, so pick the keys once.
+
+**New surfaces (each a slice, and each wants its own acceptance criteria)**
+- [ ] **A new-session canvas in the main area**, in place of the box under the group.
+  It's a composer pill (prompt, mode, repo picker defaulting to the group clicked) on an
+  empty pane. Zeron's empty state *is* this canvas. This is the same flow as
+  `NewSessionBox.tsx`, laid out differently.
+- [ ] **An empty pane that isn't blank.** With nothing selected, show the canvas (above)
+  or a quiet mark and the shortcuts, not `pane-empty`'s one line.
+- [ ] **A Cmd+K palette** over the sidebar's own rows: jump to a session by name or
+  repo, plus New session, Add repo and Stop. Zeron's palette reuses the sidebar rows.
+- [ ] **A repo avatar on group headers** (the GitHub owner image). Decide first: it's
+  the app's first network fetch that isn't a PR link the user clicked.
+
 ## Undecided — needs a decision before it's work
 
 Nothing open. (Clipped's e2e discipline was decided on 2026-09-26: ported, with the
