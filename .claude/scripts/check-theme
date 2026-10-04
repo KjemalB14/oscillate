@@ -14,7 +14,8 @@ pure black, and pure white (what the glass may show). Primary text and colored t
 need 4.5:1; muted text, focus rings and state dots need 3:1.
 
 It also checks that each mode's terminal theme sets foreground, background, cursor,
-selection and all 16 ANSI colors, with the background at TERMINAL_ALPHA (0.75-0.85).
+selection and all 16 ANSI colors, with the background at TERMINAL_ALPHA (1, or 0.75-0.85),
+and that every theme value is in a format xterm itself parses (hex, or comma rgba()).
 ANSI contrast is reported, never failed: Claude's TUI mostly draws its own RGB.
 
 Options:
@@ -34,12 +35,12 @@ const { palettes, terminalTheme, TERMINAL_ALPHA } = await import(
   new URL("../../src/palette.ts", import.meta.url).href
 );
 
-/** "#rrggbb" or "rgb(r g b / a%)" → [r, g, b, a]. */
+/** "#rrggbb", "#rrggbbaa" or "rgb(r g b / a%)" → [r, g, b, a]. */
 function parse(color) {
-  let m = /^#([0-9a-f]{6})$/i.exec(color);
+  let m = /^#([0-9a-f]{6})([0-9a-f]{2})?$/i.exec(color);
   if (m) {
     const n = parseInt(m[1], 16);
-    return [n >> 16, (n >> 8) & 255, n & 255, 1];
+    return [n >> 16, (n >> 8) & 255, n & 255, m[2] === undefined ? 1 : parseInt(m[2], 16) / 255];
   }
   m = /^rgb\((\d+) (\d+) (\d+)(?: \/ (\d+(?:\.\d+)?)%)?\)$/.exec(color);
   if (m) return [+m[1], +m[2], +m[3], m[4] === undefined ? 1 : +m[4] / 100];
@@ -111,7 +112,7 @@ for (const mode of ["dark", "light"]) {
     }
   }
 
-  // The terminal theme: complete, and translucent by TERMINAL_ALPHA.
+  // The terminal theme: complete, with its background at TERMINAL_ALPHA.
   const theme = terminalTheme(mode);
   const keys = [
     "foreground", "background", "cursor", "selectionBackground",
@@ -126,9 +127,16 @@ for (const mode of ["dark", "light"]) {
       fail(`${mode} terminal theme: ${key} missing or unparseable (${theme[key]})`);
     }
   }
+  // xterm parses only hex and comma rgba(); any other color it silently replaces with its
+  // default (an opaque black background). Every value in the theme must be one it reads.
+  const XTERM = /^(#[0-9a-f]{3,4}|#[0-9a-f]{6}|#[0-9a-f]{8}|rgba?\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*(,\s*[\d.]+\s*)?\))$/i;
+  for (const [key, value] of Object.entries(theme)) {
+    if (typeof value === "string" && !XTERM.test(value))
+      fail(`${mode} terminal theme: ${key} is ${value}, which xterm can't parse`);
+  }
   const alpha = parse(theme.background)[3];
-  if (alpha !== TERMINAL_ALPHA || alpha < 0.75 || alpha > 0.85)
-    fail(`${mode} terminal background alpha ${alpha}, want TERMINAL_ALPHA in 0.75-0.85`);
+  if (Math.abs(alpha - TERMINAL_ALPHA) > 1 / 255 || (alpha < 1 && (alpha < 0.75 || alpha > 0.85)))
+    fail(`${mode} terminal background alpha ${alpha}, want TERMINAL_ALPHA: 1, or 0.75-0.85`);
 
   for (const [bdName, bd] of Object.entries(backdrops)) {
     const bg = over(parse(theme.background), bd);

@@ -126,7 +126,9 @@ zeron, from tokens to a ⌘K palette. Its decisions and criteria are in `PLAN-ui
 - **Slice 1, *Look*, is merged.** Every color is a role in `src/palette.ts`, written as CSS
   variables by `src/theme.ts`, and follows macOS light and dark live, terminals
   included. Geist and JetBrains Mono are bundled (`src/fonts.css`).
-  `npm run theme:check` measures contrast. Hand items 1 and 3 are open.
+  `npm run theme:check` measures contrast, and checks that xterm can parse every
+  terminal color. Its hand items passed after a fix. **The terminal is opaque**
+  (`TERMINAL_ALPHA = 1`) until slice 2 makes dim text read under translucent WebGL.
 
 - Dev: `npm run tauri dev`. Release binary: `npx tauri build --no-bundle`.
 - Install: quit the app, then `npx tauri build` and `ditto
@@ -141,12 +143,12 @@ zeron, from tokens to a ⌘K palette. Its decisions and criteria are in `PLAN-ui
 - `@xterm/*` is pinned to 6.1.0 betas for the kitty keyboard protocol. Don't
   downgrade to 6.0: Esc Esc stops working in Claude.
 - Rust lives in `~/.cargo/bin`.
-- Claude can drive the window itself with `~/.claude/scripts/drive-window` (`--help`),
-  but not from a `claude --bg` job. That job isn't allowed to send Apple Events or
-  capture the screen.
-  - **Run hand checks in a foreground `claude` in Ghostty.** Ghostty needs
-    Accessibility, Screen & System Audio Recording, and Automation → System Events.
-    The rest of a slice can stay in the background.
+- Claude can drive the window itself with `~/.claude/scripts/drive-window` (`--help`).
+  - **From a foreground `claude` in Ghostty**, Ghostty needs Accessibility, Screen &
+    System Audio Recording, and Automation → System Events.
+  - **From a `claude --bg` job**, macOS asks on behalf of the app hosting its attach.
+    For a job attached in the installed Oscillate.app, both grants are on
+    (2026-10-04).
   - Clicking a real notification banner stays the author's job. Everything around it
     is checked from the app's stderr log and the process list.
 

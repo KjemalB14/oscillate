@@ -5,7 +5,7 @@ import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import "@xterm/xterm/css/xterm.css";
-import { terminalTheme } from "./palette";
+import { TERMINAL_ALPHA, terminalTheme } from "./palette";
 import { currentMode, MONO_FONT, onModeChange } from "./theme";
 
 /** Links open on Cmd+click, as in Ghostty and iTerm. */
@@ -34,8 +34,8 @@ export function createTerminal(host: HTMLElement): {
     // as Ghostty does. Without it a bare ESC is ambiguous and Esc-Esc doesn't clear.
     vtExtensions: { kittyKeyboard: true },
     linkHandler: { activate: openOnCmdClick }, // OSC 8
-    // The background is translucent (`TERMINAL_ALPHA`), so the window shows through.
-    allowTransparency: true,
+    // Only a translucent background (`TERMINAL_ALPHA`) needs it, and it costs dim text.
+    allowTransparency: TERMINAL_ALPHA < 1,
     theme: terminalTheme(currentMode()),
   });
   const fit = new FitAddon();

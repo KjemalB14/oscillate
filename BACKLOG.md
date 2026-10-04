@@ -81,11 +81,14 @@ Opened 2026-10-04 with `/decide`. The decisions, what was rejected, and the acce
 criteria are in `PLAN-ui-pass.md`. The backlog this came from is in `NOTES.md` → *The
 UI pass, from zeron*. It runs while daily use and MVP 2's `/decide` carry on.
 
-- [x] **1. Look.** Shipped 2026-10-04 (below). Items 1 and 3 (by hand, both modes) are
-  still open. Light and dark tokens that follow macOS, Geist and JetBrains Mono
-  bundled, the terminal's theme in both modes, and thin scrollbars with edge fades.
+- [x] **1. Look.** Shipped 2026-10-04 (below). Light and dark tokens that follow
+  macOS, Geist and JetBrains Mono bundled, the terminal's theme in both modes, and thin
+  scrollbars with edge fades. Items 1 and 3 passed by hand the same day, after a fix:
+  the terminal is opaque until slice 2 (`NOTES.md`, *Slice 1's hand items*).
 - [ ] **2. Chrome.** Liquid Glass through our own objc2 module, the overlay title bar
-  and the pane header, and sidebar collapse and resize.
+  and the pane header, and sidebar collapse and resize. Its spike now has two questions:
+  the glass, and dim text that reads in a translucent WebGL terminal
+  (`PLAN-ui-pass.md`, *Still open*).
 - [ ] **3. Rows.** Two-line rows, the moving indicator, the time from `updatedAt`, and
   group headers with GitHub avatars.
 - [ ] **4. Motion.** One motion catalog, and frosted popovers.
@@ -94,13 +97,16 @@ UI pass, from zeron*. It runs while daily use and MVP 2's `/decide` carry on.
 
 ## Later — MVP 2
 
-- [ ] **Try giving `claude --bg` jobs window control, once.**
-  - Add the `claude.exe` binary (under nvm) to Accessibility and to Screen & System
-    Audio Recording.
-  - Then, from a `--bg` job, run `drive-window <pid> front` and a `shot`.
-  - Doubts: Apple Events consent can't be pre-granted, and the binary's path changes on
-    every update. If it fails, hand checks stay in a foreground Ghostty session
-    (`CLAUDE.md`).
+- [x] **Try giving `claude --bg` jobs window control, once.** It works (2026-10-04).
+  macOS attributes a job to the app hosting its attach, so the grants go to
+  **Oscillate.app** (Accessibility, Screen & System Audio Recording), not `claude.exe`.
+  `drive-window`, `screencapture` and System Events' appearance switch all work from a
+  job attached in the installed app.
+- [ ] **Claude's own grays in dark mode.** The author's Claude Code theme is `light`, so
+  Claude sends colors meant for a light background. In Oscillate's dark mode its
+  muted and dim text sits at about 1.7–1.9:1. It isn't the palette. Try one of
+  `/theme`'s ANSI-only variants, which draw with the terminal's 16 colors and so follow
+  both palettes. That's the author's setting to change; the app never edits it.
 - [ ] **The reload test flakes in full runs** (2026-10-04: the two reload specs, run alone,
   failed 2 of 5 on `main` and 2 of 5 on chapter 5's slice 1, `PLAN-ui-pass.md`) (`sidebar-order.spec.ts`, item 4, and now
   `notifications.spec.ts` item 3, which also reloads: 1 of 3 full runs, 2026-10-01). It timed out
@@ -186,6 +192,11 @@ gate on merge instead of push. See `NOTES.md` → *Chapter 2 closed*.)
 
 ## Shipped
 
+- 2026-10-04: slice 1's hand items, and the fix they found.
+  - xterm read none of our `rgb(r g b / a%)` colors, and kept its opaque black. The
+    terminal theme now writes hex, and `check-theme` fails any color xterm can't parse.
+  - The terminal is opaque (`TERMINAL_ALPHA = 1`), because translucent WebGL drew dim
+    text at about 7%. The host's padding is painted in the terminal's color.
 - 2026-10-04: chapter 5, slice 1: the look.
   - `src/palette.ts` names every color: light and dark chrome roles, and the
     terminal's full theme at 80% alpha. Both follow macOS live.

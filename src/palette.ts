@@ -67,8 +67,13 @@ export interface Palette {
   terminal: TerminalColors;
 }
 
-/** How much of the terminal's background color covers what's behind it. */
-export const TERMINAL_ALPHA = 0.8;
+/**
+ * How much of the terminal's background color covers what's behind it. 1 for now: under
+ * `allowTransparency`, xterm's WebGL renderer draws dim text at a fraction of its alpha,
+ * and Claude's status line all but vanishes in light mode (NOTES.md, slice 1's hand
+ * items). Slice 2 brings the translucency back only with dim text that reads.
+ */
+export const TERMINAL_ALPHA = 1;
 
 export const palettes: Record<Mode, Palette> = {
   dark: {
@@ -135,10 +140,23 @@ export const palettes: Record<Mode, Palette> = {
   },
 };
 
-/** `#rrggbb` → `rgb(r g b / a%)`. */
+const hex2 = (n: number) => Math.round(n).toString(16).padStart(2, "0");
+
+/** `#rrggbb` → `#rrggbbaa`. */
 export function withAlpha(hex: string, alpha: number): string {
-  const n = parseInt(hex.slice(1), 16);
-  return `rgb(${n >> 16} ${(n >> 8) & 255} ${n & 255} / ${Math.round(alpha * 100)}%)`;
+  return `${hex}${hex2(alpha * 255)}`;
+}
+
+/**
+ * A palette color in a form xterm parses: `#rrggbb`, or `#rrggbbaa` for our
+ * `rgb(r g b / a%)`. xterm reads only hex and comma `rgba()`; anything else goes through
+ * a canvas that rejects translucency, and the theme silently keeps xterm's default
+ * (an opaque black background, NOTES.md, slice 1's hand items).
+ */
+export function xtermColor(color: string): string {
+  const m = /^rgb\((\d+) (\d+) (\d+) \/ (\d+(?:\.\d+)?)%\)$/.exec(color);
+  if (!m) return color;
+  return `#${hex2(+m[1])}${hex2(+m[2])}${hex2(+m[3])}${hex2((+m[4] / 100) * 255)}`;
 }
 
 const ANSI_KEYS = [
@@ -147,7 +165,7 @@ const ANSI_KEYS = [
   "brightBlue", "brightMagenta", "brightCyan", "brightWhite",
 ] as const;
 
-/** xterm's theme for a mode: every color set, the background translucent. */
+/** xterm's theme for a mode: every color set, the background at `TERMINAL_ALPHA`. */
 export function terminalTheme(mode: Mode): ITheme {
   const { terminal: t, chrome } = palettes[mode];
   const theme: ITheme = {
@@ -155,10 +173,10 @@ export function terminalTheme(mode: Mode): ITheme {
     foreground: t.foreground,
     cursor: t.cursor,
     cursorAccent: t.background,
-    selectionBackground: t.selection,
-    scrollbarSliderBackground: chrome.hover,
-    scrollbarSliderHoverBackground: chrome.selected,
-    scrollbarSliderActiveBackground: chrome.selected,
+    selectionBackground: xtermColor(t.selection),
+    scrollbarSliderBackground: xtermColor(chrome.hover),
+    scrollbarSliderHoverBackground: xtermColor(chrome.selected),
+    scrollbarSliderActiveBackground: xtermColor(chrome.selected),
   };
   ANSI_KEYS.forEach((key, i) => (theme[key] = t.ansi[i]));
   return theme;
