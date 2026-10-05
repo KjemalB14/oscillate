@@ -447,3 +447,18 @@ and criteria 23–27. The order of the rest of slice 2:
 3. The renderer switch and the dim rule (24, 25), only if 23 passed.
 4. The WebGL repro (27).
 5. The overlay title bar, the header, and sidebar collapse and resize (8–9).
+
+## Slice 2 — the speed gate: built, not run on a real turn (2026-10-04)
+
+- **Built:** `npm run e2e:speed` (`e2e/speed.check.ts`, page side `src/bench.ts`, e2e
+  builds only) and `.claude/scripts/scrub-recording`. `createTerminal(host, { alpha })`
+  now picks the renderer from the alpha (criterion 24's switch). `TERMINAL_ALPHA` is
+  still 1, so nothing ships differently.
+- **Proved on a synthetic turn:** the pipeline runs, and a DOM renderer slowed by
+  120 ms a frame turns it red (2.10×, 132 ms gaps). The floods were at parity:
+  `seq` 795/764 ms and `cat` 310/275 ms (WebGL/DOM).
+- **Not proved:** criterion 23 itself. The author waived recording a real turn and moved
+  on to the chrome. **The terminal stays opaque on WebGL** until the gate runs on a real
+  turn: record one as the script's `--help` says, write `e2e/fixtures/claude-turn.json`,
+  and run `npm run e2e:speed`. Criteria 24–27 wait on it. Criterion 22 with DOM isn't
+  measured either.

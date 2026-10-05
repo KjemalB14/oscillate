@@ -9,6 +9,20 @@ Newest entries at the top.
 
 ---
 
+## 2026-10-04 — The speed gate, built and parked
+
+The status is in `PLAN-ui-pass.md` → *Slice 2 — the speed gate*.
+- **The renderer is not where chapter 1's flood time went.** Written straight into
+  xterm, the 20MB `cat` drains in about 0.3 s under either renderer, and through the
+  PTY and IPC it took 1.71 s. The pipe from Rust to the page is the cost.
+- **The paced replay is the sharper detector.** With DOM slowed by 120 ms a frame, the
+  fast drain only just failed (2.10×), while the paced run logged 394 frames over 50 ms.
+- **Two WDIO quirks:** `browser.execute` returns an unset value as `null`, not
+  `undefined`, so a poll for "done" must test `!= null`. And `this.timeout()` inside an
+  `it` is ignored under WDIO's wrapper: a long probe sets `--mochaOpts.timeout`.
+
+---
+
 ## 2026-10-04 — The terminal's `/decide`: DOM behind a speed gate
 
 The choice, its gate and the rejections are in `PLAN-ui-pass.md` → *Chosen*, *The glass

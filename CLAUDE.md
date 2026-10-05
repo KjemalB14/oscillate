@@ -133,7 +133,9 @@ zeron, from tokens to a ⌘K palette. Its decisions and criteria are in `PLAN-ui
   is built (`glass.rs`), and the glass composes behind the chrome. The see-through
   terminal fails on WebGL in light mode. `/decide` re-settled it the same day: the
   DOM renderer behind a speed gate, else an opaque terminal, with alphas from the
-  measured glass (`PLAN-ui-pass.md`, *Chosen*, and criteria 23–27).
+  measured glass (`PLAN-ui-pass.md`, *Chosen*, and criteria 23–27). The gate
+  (`npm run e2e:speed`) is built but parked without a real recorded turn, so **the
+  terminal stays opaque on WebGL**. The chrome work (criteria 8–9) goes on.
 
 - Dev: `npm run tauri dev`. Release binary: `npx tauri build --no-bundle`.
 - Install: quit the app, then `npx tauri build` and `ditto
