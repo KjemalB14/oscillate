@@ -121,10 +121,10 @@ decisions and what it didn't prove are in `NOTES.md` → *Chapter 3 closed*.
   is listing.
 - The e2e build logs notifications, badge changes and opened links instead of reaching
   macOS (`e2e/README.md`).
-- **The installed app is chapter 5, slice 3's build** (`f82cbac`, installed 2026-10-04).
-  Launched as
-  `/Applications/Oscillate.app/Contents/MacOS/oscillate 2>log`, it logs each notify
-  decision, each tap, each opened link, and each PR-link miss.
+- **The installed app is chapter 5, slice 4's build** (`e9af345`, installed 2026-10-05).
+  Launched with `open -a /Applications/Oscillate.app --stderr
+  ~/Library/Logs/Oscillate/oscillate.log`, it logs each notify decision, each tap, each
+  opened link, and each PR-link or avatar miss there.
 
 **Next: MVP 2** (`BACKLOG.md` → *Later*). Nothing is open. Pick what comes first from
 daily use, and open it with `/decide`. `/decide` was started on 2026-10-04 and paused
@@ -161,7 +161,7 @@ zeron, from tokens to a ⌘K palette. Its decisions and criteria are in `PLAN-ui
     `https://github.com/<owner>.png`, fetched once through `NSURLSession`, and cached in
     the app data dir's `avatars/`. Any miss is a folder glyph. E2e builds fetch only
     from the harness's local server (`OSCILLATE_E2E_AVATAR_BASE`).
-- **Slice 4, *Motion*, is merged** (2026-10-05). It isn't installed yet.
+- **Slice 4, *Motion*, is merged and installed** (2026-10-05).
   - Every duration is a variable in `src/motion.css`'s catalog, and all are 0 under
     `data-motion="reduce"`. Only the state indicators' loops name their own.
   - The row menu, PR menu, remove confirm, new-session box and quit notice sit on one
