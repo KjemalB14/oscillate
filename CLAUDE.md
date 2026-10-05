@@ -141,6 +141,18 @@ zeron, from tokens to a ⌘K palette. Its decisions and criteria are in `PLAN-ui
     speed gate (`npm run e2e:speed`), which is parked without a real recorded turn.
     The alphas wait on measuring the glass (`BACKLOG.md`, *The see-through terminal
     and the glass alphas*).
+- **Slice 3, *Rows*, is merged.**
+  - A row has two lines: the indicator, the name and the time since `updatedAt`
+    (`src/ago.ts`), then `waitingFor` or the state's words with the PR chips. Rows
+    still never move.
+  - Working is a 3×3 cell wave, and needs you breathes. `theme.ts` mirrors Reduce
+    motion as `data-motion="reduce"` on the root, which every animation keys off.
+  - A group header is the repo's avatar, its name and its count. `avatars.rs` reads
+    the origin from the repo's git config, following a worktree's `.git` file.
+  - **The avatar is the app's one unprompted outbound request:**
+    `https://github.com/<owner>.png`, fetched once through `NSURLSession`, and cached in
+    the app data dir's `avatars/`. Any miss is a folder glyph. E2e builds fetch only
+    from the harness's local server (`OSCILLATE_E2E_AVATAR_BASE`).
 
 - Dev: `npm run tauri dev`. Release binary: `npx tauri build --no-bundle`.
 - Install: quit the app, then `npx tauri build` and `ditto
@@ -172,9 +184,10 @@ Breaking one is a regression even when nothing fails.
    `claude --bg`, `claude stop`/`rm`, `claude agents --json`, and the one-off interactive
    `claude` used to accept workspace trust. It never keeps a Claude session alive by
    itself.
-2. **Session state comes from `claude agents --json`.** The single exception is the PR
-   link adapter (`pr_links.rs`), which reads the undocumented job `state.json` and must
-   fail soft: a parse miss means no badge, never an error.
+2. **Session state comes from `claude agents --json`.** The single exception is the
+   job-state adapter (`pr_links.rs`). It reads the undocumented job `state.json` for PR
+   links and `updatedAt`, and must fail soft: a parse miss means no badge or no time,
+   never an error.
 3. **Never two PTYs attached to the same session.**
 4. **Every `claude` invocation goes through one resolver.** It honors
    `OSCILLATE_CLAUDE_BIN`, so tests run against a fake `claude` and never touch real

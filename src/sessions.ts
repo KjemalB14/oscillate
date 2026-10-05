@@ -36,6 +36,8 @@ export interface Session {
   sortKey: number;
   /** Its PRs, oldest first, from the job's `state.json`; empty when it has none or can't be read. */
   prs: Pr[];
+  /** Last activity, in ms since the epoch: the job's `updatedAt`; null on any miss. */
+  updatedAt: number | null;
 }
 
 /**

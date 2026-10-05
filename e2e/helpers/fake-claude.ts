@@ -112,7 +112,57 @@ export class FakeClaude {
       OSCILLATE_E2E_NOTIFY_LOG: join(this.dir, "notify.log"),
       OSCILLATE_E2E_FOCUS: join(this.dir, "focus"),
       OSCILLATE_E2E_OPEN_LOG: join(this.dir, "opened.log"),
+      OSCILLATE_E2E_AVATAR_BASE: this.avatarBaseFile,
     };
+  }
+
+  /**
+   * The file holding the base URL the e2e build fetches avatars from, instead of
+   * `https://github.com`. With no file, it fetches nothing. `AvatarServer` writes it.
+   */
+  get avatarBaseFile(): string {
+    return join(this.dir, "avatar-base");
+  }
+
+  /** The owners whose avatar the app has cached in its data dir (`avatars/<owner>`). */
+  avatarCache(): string[] {
+    const dir = join(this.dataDir, "avatars");
+    return existsSync(dir) ? readdirSync(dir).filter((f) => !f.endsWith(".part")).sort() : [];
+  }
+
+  /** Empties the app's avatar cache. The app's in-memory lookups stay until a relaunch. */
+  clearAvatarCache() {
+    rmSync(join(this.dataDir, "avatars"), { recursive: true, force: true });
+  }
+
+  /**
+   * `repo(name)`, made a git repo: a `.git/config` whose `[remote "origin"]` url is
+   * `origin`, or with no remote when `origin` is null. Nothing else of git is there; the
+   * app reads only the config.
+   */
+  gitRepo(name: string, origin: string | null): string {
+    const dir = this.repo(name);
+    mkdirSync(join(dir, ".git"), { recursive: true });
+    const remote = origin === null ? "" : `[remote "origin"]\n\turl = ${origin}\n\tfetch = +refs/heads/*:refs/remotes/origin/*\n`;
+    writeFileSync(join(dir, ".git", "config"), `[core]\n\trepositoryformatversion = 0\n\tbare = false\n${remote}`);
+    return dir;
+  }
+
+  /**
+   * A worktree of `gitRepo(repo, …)`, as `git worktree add` leaves one: the directory
+   * `<fake dir>/worktrees/<name>` (outside the repo) with a `.git` file naming
+   * `<repo>/.git/worktrees/<name>`, whose `commondir` leads back to the repo's `.git`.
+   * Its origin is the repo's. Returns the worktree's resolved path.
+   */
+  gitWorktree(repo: string, name: string): string {
+    const main = join(this.repo(repo), ".git");
+    const gitdir = join(main, "worktrees", name);
+    mkdirSync(gitdir, { recursive: true });
+    writeFileSync(join(gitdir, "commondir"), "../..\n");
+    const dir = join(this.dir, "worktrees", name);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, ".git"), `gitdir: ${gitdir}\n`);
+    return realpathSync(dir);
   }
 
   private create() {

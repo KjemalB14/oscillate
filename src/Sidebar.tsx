@@ -3,10 +3,13 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type CSSProperties,
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { ago, useNow } from "./ago";
+import { useAvatar } from "./avatars";
 import { groupSessions, type RepoGroup } from "./groups";
 import { MAX_WIDTH, MIN_WIDTH, type Layout } from "./layout";
 import { STOPPABLE, type RowAction, type RowActions } from "./rowActions";
@@ -26,6 +29,41 @@ const STATE_WORDS: Record<UiState, string> = {
 
 export function stateWords(s: Session): string {
   return s.state === "unknown" && s.rawState ? `unknown (${s.rawState})` : STATE_WORDS[s.state];
+}
+
+/** Working's 3×3 cells, each with its diagonal (0–4), which sets its place in the wave. */
+const CELLS = Array.from({ length: 9 }, (_, i) => (
+  <span key={i} className="cell" style={{ "--diagonal": (i % 3) + Math.floor(i / 3) } as CSSProperties} />
+));
+
+/**
+ * The state indicator, moving as zeron's does: working is a 3×3 grid with a phase wave,
+ * needs you breathes, and the rest are still dots. All are still under reduced motion.
+ */
+export function StateDot({ session }: { session: Session }) {
+  const words = stateWords(session);
+  return (
+    <span className="dot" role="img" aria-label={words} title={words}>
+      {session.state === "working" && CELLS}
+    </span>
+  );
+}
+
+/**
+ * A group's avatar: its GitHub owner's image, else a folder glyph. While it's asked for,
+ * it's an empty box of the same size, so the label doesn't shift. None of the three is a
+ * `span`, because specs read a header's spans as chevron, label, count.
+ */
+function RepoAvatar({ cwd }: { cwd: string }) {
+  const url = useAvatar(cwd);
+  if (url) return <img className="avatar" data-avatar="image" src={url} alt="" draggable={false} />;
+  return (
+    <svg className="avatar" data-avatar={url === null ? "folder" : "pending"} viewBox="0 0 16 16" aria-hidden="true">
+      {url === null && (
+        <path d="M2.5 4.5a1 1 0 0 1 1-1h2.8l1.4 1.4h4.8a1 1 0 0 1 1 1v5.6a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1z" />
+      )}
+    </svg>
+  );
 }
 
 /** Opens a PR in the default browser; Rust opens only links a listed session names. */
@@ -68,6 +106,8 @@ export function PrChips({ prs, name, onMore }: { prs: Pr[]; name: string; onMore
 interface RowProps {
   session: Session;
   selected: boolean;
+  /** The clock the row's time is measured against (`useNow`). */
+  now: number;
   onSelect: (id: string) => void;
   /** Stop or Remove under way, Remove's confirm, or a failure to show. */
   action: RowAction | undefined;
@@ -79,10 +119,16 @@ interface RowProps {
   onMorePrs: (session: Session, e: ReactMouseEvent<HTMLButtonElement>) => void;
 }
 
-function SessionRow({ session, selected, onSelect, action, onMenu, onConfirmRemove, onDismiss, onMorePrs }: RowProps) {
+/**
+ * Two lines. Line 1 is the indicator, the name, and the time since the last activity.
+ * Line 2 is what it's waiting for, else the state's words, with the PR chips at its end.
+ * The repo is the group's header, so it's not on the row.
+ */
+function SessionRow({ session, selected, now, onSelect, action, onMenu, onConfirmRemove, onDismiss, onMorePrs }: RowProps) {
   const terminalTab = session.state === "terminal-tab";
   const running = action?.kind === "running" ? (action.end === "stop" ? "Stopping…" : "Removing…") : null;
-  const detail = terminalTab ? "run /bg to open here" : running ?? session.waitingFor;
+  const detail = terminalTab ? "run /bg to open here" : running ?? session.waitingFor ?? stateWords(session);
+  const updated = session.updatedAt;
   const id = session.id;
   const name = session.name ?? session.id ?? "Terminal session";
   return (
@@ -103,10 +149,15 @@ function SessionRow({ session, selected, onSelect, action, onMenu, onConfirmRemo
         }}
         title={terminalTab ? "Started in a terminal tab. Run /bg there to open it here." : undefined}
       >
-        <span className="dot" role="img" aria-label={stateWords(session)} title={stateWords(session)} />
+        <StateDot session={session} />
         <span className="name">{name}</span>
+        {updated != null && (
+          <time className="when" dateTime={new Date(updated).toISOString()} title={`Last active ${new Date(updated).toLocaleString()}`}>
+            {ago(updated, now)}
+          </time>
+        )}
+        <span className="detail">{detail}</span>
         <PrChips prs={session.prs ?? []} name={name} onMore={(e) => onMorePrs(session, e)} />
-        {detail && <span className="detail">{detail}</span>}
       </li>
       {id && action?.kind === "confirm" && (
         <li
@@ -375,6 +426,7 @@ export function Sidebar({
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
   const [menu, setMenu] = useState<MenuAt | null>(null);
   const [prMenu, setPrMenu] = useState<PrMenuAt | null>(null);
+  const now = useNow();
   const scroller = useRef<HTMLDivElement>(null);
   const [fade, setFade] = useState("");
   // The list fades at whichever edge hides rows: on scroll, and whenever rows change.
@@ -442,6 +494,7 @@ export function Sidebar({
               onClick={() => toggle(group.key)}
             >
               <span className="chevron" aria-hidden="true" />
+              <RepoAvatar cwd={group.key} />
               <span className="label">{group.label}</span>
               <span className="count">{group.sessions.length}</span>
             </button>
@@ -473,6 +526,7 @@ export function Sidebar({
                   session={s}
                   key={s.key}
                   selected={s.id !== null && s.id === selected}
+                  now={now}
                   onSelect={onSelect}
                   action={s.id ? rowActions.actions.get(s.id) : undefined}
                   onMenu={openMenu}

@@ -65,6 +65,9 @@ pub struct Session {
     /// Its PRs, oldest first, from the job's `state.json` (`pr_links.rs`); empty on any
     /// miss.
     pub prs: Vec<crate::pr_links::Pr>,
+    /// Last activity, in ms since the epoch: `updatedAt` from the same `state.json`
+    /// (`pr_links.rs`); `None` on any miss.
+    pub updated_at: Option<i64>,
 }
 
 pub fn to_session(e: &AgentEntry) -> Session {
@@ -98,6 +101,7 @@ pub fn to_session(e: &AgentEntry) -> Session {
         started_at: e.started_at.unwrap_or(0.0) as i64,
         sort_key: e.started_at.unwrap_or(0.0) as i64,
         prs: Vec::new(),
+        updated_at: None,
     }
 }
 
@@ -238,5 +242,6 @@ mod tests {
         assert_eq!(v["waitingFor"], "approve Bash");
         assert_eq!(v["rawState"], "blocked");
         assert_eq!(v["sortKey"], v["startedAt"]);
+        assert!(v["updatedAt"].is_null(), "no time until the job's state.json gives one");
     }
 }

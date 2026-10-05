@@ -144,6 +144,24 @@ when nothing changed.
       watched tree with the baseline.
     - `fake.claudeDirExpected()` is the baseline plus the jobs `job()` has written. Compare
       `claudeDirTree()` with it while jobs are in place.
+    - A job's `updatedAt` is the row's time. Write it as Claude Code does,
+      `{ updatedAt: "2026-10-04T23:17:49.030Z", ... }`; any other form is no time.
+  - **Avatars never come from GitHub in the e2e build.** It fetches from the base URL in
+    the file `fake.avatarBaseFile` names, and with no file it fetches nothing.
+    `helpers/avatar-server.ts` is a local stand-in. Its header says what the app
+    remembers: each owner is looked up once per app process, and only hits are cached on
+    disk.
+    - `AvatarServer.start()` serves `/<owner>.png` and writes the file. `answer()` picks
+      the reply, `requests()` reads them back, `offline()` and `online()` switch, and
+      `stop()` removes the file.
+    - `fake.gitRepo(name, origin | null)` makes `fake.repo(name)` a git repo, with only a
+      `.git/config`. `fake.gitWorktree(repo, name)` makes a worktree of it outside it,
+      and `attachable(id, { cwd })` uses one.
+    - `fake.avatarCache()` lists the cached owners in the app data dir, and
+      `fake.clearAvatarCache()` empties it.
+  - **Reduced motion can't be switched from WebDriver.** The page mirrors macOS's
+    setting as `data-motion="reduce"` on `<html>`, and every animation keys off that, so
+    a spec sets the attribute and deletes it after.
   - `fake.opened()` lists every link the app sent to the opener, in order. The e2e build
     logs them (`OSCILLATE_E2E_OPEN_LOG`) instead of opening a browser.
   - `fake.claudeDirTree()` hashes every path under the watched Claude dir, except the
@@ -189,6 +207,7 @@ when nothing changed.
     terminal-tab entries (a copy of the Rust fixture).
   - `deep-collision.json`: `a/x/repo` vs `b/x/repo`.
   - `empty.json`.
+- `fixtures/avatar.png` is an 8×8 PNG that `AvatarServer` answers with.
 - The other `fixtures/` are real `claude` output the fake answers with: `bg-stdout.txt`,
   `bg-untrusted-stderr.txt`, and `rm-refused-stdout.txt` (Claude Code 2.1.285, against a
   throwaway session whose worktree had a commit on no remote).

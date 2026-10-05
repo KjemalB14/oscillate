@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { Session } from "./sessions";
-import { PrChips, PrMenu, prMenuAt, SidebarToggle, stateWords, type PrMenuAt } from "./Sidebar";
+import { PrChips, PrMenu, prMenuAt, SidebarToggle, StateDot, stateWords, type PrMenuAt } from "./Sidebar";
 
 interface Props {
   /** The session whose pane shows, if any. */
@@ -32,7 +32,7 @@ export function PaneHeader({ session, repo, trust, collapsed, onToggle }: Props)
       {collapsed && <SidebarToggle onToggle={onToggle} />}
       {session && (
         <>
-          <span className="dot" role="img" aria-label={stateWords(session)} title={stateWords(session)} />
+          <StateDot session={session} />
           <span className="header-name">{name}</span>
           {repo && <span className="header-repo">{repo}</span>}
           <span className="header-state">{stateWords(session)}</span>
