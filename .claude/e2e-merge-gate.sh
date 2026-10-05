@@ -3,7 +3,11 @@
 # on exactly the code being merged. NOTES.md → *Chapter 2 closed* has the decision; it is
 # clipped's push gate moved to the merge, because Oscillate has no remote.
 #
-# Three answers, in order, for `git merge <branch>` run while `main` is checked out:
+# Three answers, in order, for `git merge <branch>` onto `main`. That's either `main`
+# checked out, or `main` or `origin/main` detached, which is how a session in a worktree
+# merges (CLAUDE.md, *Closing a body of work*: git refuses to check out `main` in a second
+# worktree). A detach earlier in the same command counts, since this hook runs before it:
+# `git switch --detach origin/main && git merge <branch>`.
 #   1. Nothing the app is made of changes: allow.
 #   2. App code changes with no e2e spec added or changed, and no commit on the branch
 #      says `E2E: none — <reason>`: refuse. Whether a change can be seen in the app is a
@@ -29,6 +33,8 @@ cwd=$(jq -r '.cwd // ""' <<<"$input")
 parsed=$(CMD="$cmd" python3 - <<'EOF'
 import os, re, shlex
 cmd = os.environ["CMD"]
+MAINS = ("main", "origin/main")
+detached = ""  # a `main` detached earlier in this command, which the merge lands on
 for part in re.split(r"&&|\|\||;|\n", cmd):
     try:
         words = shlex.split(part)
@@ -39,6 +45,11 @@ for part in re.split(r"&&|\|\||;|\n", cmd):
     rest, where = words[1:], ""
     if rest[:1] == ["-C"] and len(rest) > 2:
         where, rest = rest[1], rest[2:]
+    if rest[:1] in (["switch"], ["checkout"]):
+        refs = [a for a in rest[1:] if not a.startswith("-")]
+        detaches = "--detach" in rest or "-d" in rest or (rest[0] == "checkout" and refs[-1:] == ["origin/main"])
+        detached = refs[-1] if detaches and refs[-1:] and refs[-1] in MAINS else ""
+        continue
     if rest[:1] != ["merge"]:
         continue
     args, refs, skip = rest[1:], [], False
@@ -55,17 +66,33 @@ for part in re.split(r"&&|\|\||;|\n", cmd):
     if refs:
         print(where)
         print(refs[-1])
+        print(detached)
         break
 EOF
 )
 [ -n "$parsed" ] || exit 0
 where=$(sed -n 1p <<<"$parsed")
 branch=$(sed -n 2p <<<"$parsed")
+detached=$(sed -n 3p <<<"$parsed")
 
 dir=${where:-$cwd}
 [ -n "$dir" ] && cd "$dir" 2>/dev/null || exit 0
 git rev-parse --git-dir >/dev/null 2>&1 || exit 0
-[ "$(git branch --show-current)" = "main" ] || exit 0
+# What the merge lands on: a `main` detached earlier in the command, else HEAD, if HEAD is
+# `main` checked out or `main`/`origin/main` detached. Anything else isn't gated.
+if [ -n "$detached" ]; then
+  onto=$detached
+elif [ "$(git branch --show-current)" = "main" ]; then
+  onto=HEAD
+elif [ -z "$(git branch --show-current)" ] && {
+  [ "$(git rev-parse -q --verify HEAD)" = "$(git rev-parse -q --verify origin/main)" ] ||
+    [ "$(git rev-parse -q --verify HEAD)" = "$(git rev-parse -q --verify main)" ]
+}; then
+  onto=HEAD
+else
+  exit 0
+fi
+git rev-parse --verify -q "$onto^{commit}" >/dev/null || exit 0
 git rev-parse --verify -q "$branch^{commit}" >/dev/null || exit 0
 
 decide() {
@@ -75,7 +102,7 @@ decide() {
   fi
 }
 
-changed=$(git diff --name-only "HEAD...$branch")
+changed=$(git diff --name-only "$onto...$branch")
 app='^(src/|src-tauri/src/|src-tauri/Cargo\.(toml|lock)$|src-tauri/tauri[^/]*\.json$|src-tauri/capabilities/|e2e/|package(-lock)?\.json$|index\.html$|vite\.config\.ts$)'
 grep -Eq "$app" <<<"$changed" || {
   decide "allow: no app code changed"
@@ -83,7 +110,7 @@ grep -Eq "$app" <<<"$changed" || {
 }
 
 if ! grep -Eq '^e2e/.*\.spec\.ts$' <<<"$changed" &&
-  ! git log "HEAD..$branch" --format=%B | grep -Eqi '^E2E:[[:space:]]*none'; then
+  ! git log "$onto..$branch" --format=%B | grep -Eqi '^E2E:[[:space:]]*none'; then
   decide "block: app changed, no spec"
   cat >&2 <<EOF
 $branch changes the app and adds or changes no e2e spec. If the change can be seen in the

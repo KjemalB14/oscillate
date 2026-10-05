@@ -15,6 +15,7 @@ g switch -c app-trailer && commit src-tauri/src/poll.rs $'refactor\n\nE2E: none 
 g switch -c app-spec && commit src/Sidebar.tsx "app" && commit e2e/sidebar.spec.ts "spec" && g switch main
 g switch -c app-green && commit src/App.tsx "app" && commit e2e/other.spec.ts "spec" && g switch main
 git -C "$repo" rev-parse "app-green^{tree}" >>"$repo/.git/e2e-green"
+g update-ref refs/remotes/origin/main main
 
 t() { # <command> <cwd> <want> <label>
   input=$(jq -nc --arg c "$1" --arg d "$2" '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}')
@@ -35,3 +36,13 @@ t "git merge --abort" "$repo" "" "abort"
 t "git merge no-such-branch" "$repo" "" "unknown ref"
 g switch app-spec
 t "git merge app-no-spec" "$repo" "" "not on main"
+t "git switch --detach main && git merge app-no-spec" "$repo" "block: app changed, no spec" "detaching main earlier in the command"
+t "git checkout origin/main && git merge app-green" "$repo" "allow: this tree passed" "checking out origin/main earlier in the command"
+t "git switch --detach app-green && git merge app-no-spec" "$repo" "" "detaching something else"
+g switch --detach main
+t "git merge app-no-spec" "$repo" "block: app changed, no spec" "main detached (a worktree's merge)"
+t "git merge app-green" "$repo" "allow: this tree passed" "main detached, green"
+g switch --detach origin/main
+t "git merge --no-ff app-spec" "$repo" "block: not green" "origin/main detached"
+g switch --detach app-spec
+t "git merge app-no-spec" "$repo" "" "detached elsewhere"
