@@ -9,6 +9,38 @@ Newest entries at the top.
 
 ---
 
+## 2026-10-04 — Slice 3's rows
+
+The results are in `PLAN-ui-pass.md` → *Slice 3 — Rows*. The decisions taken on the
+way, with what was rejected:
+- **The avatar is fetched through `NSURLSession`** (objc2-foundation, already linked for
+  notifications).
+  - **Rejected: `reqwest` or `ureq`.** `reqwest` is in `Cargo.lock` only for Tauri's
+    other targets, so either would add a whole HTTP and TLS stack to the macOS build
+    for one image per owner.
+  - **Rejected: `/usr/bin/curl`.** It's a process outside invariant 1's spawn list.
+  - **Rejected: `tauri-plugin-http`.** It's a plugin for one GET.
+- **Reduced motion is an attribute, `data-motion="reduce"`, not a media query in the
+  CSS.** WebDriver can't emulate `prefers-reduced-motion` in WKWebView, so criterion 13
+  had nothing to drive. Now `theme.ts` follows the media query, and a spec sets the
+  attribute. **Rejected:** an e2e-only override of `matchMedia`. It would test a path
+  that the real app never takes.
+- **The header's DOM is chevron, avatar, label, count, and the chevron is moved to
+  the end by CSS.** `sidebar-groups.spec.ts` reads the header's spans by index, so the
+  avatar is an `img` or `svg`, never a `span`. `sidebar-rows.spec.ts` counts
+  `[role="img"]` in the sidebar, so the avatar has no explicit role.
+- **Hover-revealed buttons stay clickable in e2e.** The embedded driver clicks with
+  `el.click()`, and judges "displayed" by `display` and `visibility` only, not opacity.
+  So the chevron and "+" fade by opacity.
+- **A miss isn't cached on disk.** A relaunch retries, so a repo first seen offline
+  gets its avatar later. Within one process, each owner is looked up once, hit or
+  miss, so an offline launch doesn't retry on every render.
+- **What it cost to find out:** a deliberate break, a 120s clock, showed `useNow` had
+  measured every render against its last tick. So a poll's re-render could lag. A
+  test meant for something else caught it.
+
+---
+
 ## 2026-10-04 — Slice 2's chrome
 
 The results are in `PLAN-ui-pass.md` → *Slice 2 — the chrome*. What it cost to find

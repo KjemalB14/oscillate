@@ -1,4 +1,5 @@
 mod attention;
+mod avatars;
 mod claude;
 mod endsession;
 mod glass;
@@ -176,6 +177,23 @@ fn glass_state(glass: State<'_, glass::Glass>) -> bool {
     glass.0
 }
 
+/// A group's avatar as a `data:` URL, or `null` for the folder glyph (`avatars.rs`). Only
+/// a directory the app is listing, as a session's `cwd` or an added repo, is looked at.
+#[tauri::command(async)]
+fn repo_avatar(
+    model: State<'_, SessionModel>,
+    repos: State<'_, repos::Repos>,
+    avatars: State<'_, avatars::Avatars>,
+    cwd: String,
+) -> Option<String> {
+    let listed = repos.list().contains(&cwd)
+        || model.poller.snapshot().is_some_and(|list| list.iter().any(|s| s.cwd == cwd));
+    if !listed {
+        return None;
+    }
+    avatars.get(Path::new(&cwd)).0
+}
+
 #[tauri::command]
 fn repos_list(repos: State<'_, repos::Repos>) -> Vec<String> {
     repos.list()
@@ -236,6 +254,7 @@ pub fn run() {
             // Both before the poller, whose first list reads them.
             app.manage(repos::Repos::load(&data_dir));
             app.manage(layout::Layout::load(&data_dir));
+            app.manage(avatars::Avatars::new(&data_dir, &claude_dir));
             app.manage(notifications::Notifier::new(app.handle()));
             let (tx, rx) = mpsc::channel();
             let poll_now = tx.clone();
@@ -286,6 +305,7 @@ pub fn run() {
             set_visible_session,
             open_pr,
             glass_state,
+            repo_avatar,
             e2e_notification_response,
             pty::pty_spawn,
             pty::pty_write,

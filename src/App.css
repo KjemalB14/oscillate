@@ -215,10 +215,8 @@ body,
   transition: none;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .app[data-layout="ready"] .sidebar {
-    transition: none;
-  }
+:root[data-motion="reduce"] .app[data-layout="ready"] .sidebar {
+  transition: none;
 }
 
 .sidebar[data-collapsed] {
@@ -293,17 +291,19 @@ body,
   gap: 2px;
 }
 
+/* A group's header: the repo's avatar, its name, then the count. The chevron and the
+   group's actions show on hover (or keyboard focus); the chevron sits at the end. */
 .group-header {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   flex: 1;
   min-width: 0;
   padding: 4px 6px;
   border: 0;
-  border-radius: 5px;
+  border-radius: 6px;
   background: none;
-  color: var(--muted);
+  color: var(--text);
   font-family: inherit;
   font-size: 12px;
   font-weight: 600;
@@ -311,8 +311,24 @@ body,
   text-align: left;
 }
 
-.group-header:hover {
-  color: var(--text);
+.avatar {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+}
+
+img.avatar {
+  object-fit: cover;
+  outline: 1px solid var(--hairline);
+  outline-offset: -1px;
+}
+
+svg.avatar {
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 1.2;
+  stroke-linejoin: round;
 }
 
 .group-header:focus-visible,
@@ -324,12 +340,16 @@ body,
 }
 
 .chevron {
+  order: 1;
+  flex: none;
   width: 0;
   height: 0;
-  border-left: 4px solid currentColor;
+  margin: 0 3px 0 auto;
+  border-left: 4px solid var(--muted);
   border-top: 3.5px solid transparent;
   border-bottom: 3.5px solid transparent;
-  transition: transform 120ms ease;
+  opacity: 0;
+  transition: transform 120ms ease, opacity 120ms ease;
 }
 
 .group-header[aria-expanded="true"] .chevron {
@@ -337,7 +357,6 @@ body,
 }
 
 .group-header .label {
-  flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -345,8 +364,17 @@ body,
 }
 
 .group-header .count {
+  flex: none;
+  color: var(--muted);
   font-weight: 500;
   font-variant-numeric: tabular-nums;
+}
+
+.group-bar:hover .chevron,
+.group-header:focus-visible .chevron,
+.group-bar:hover .group-action,
+.group-bar:focus-within .group-action {
+  opacity: 1;
 }
 
 .sessions {
@@ -355,13 +383,20 @@ body,
   padding: 0;
 }
 
+/* A row is two lines: the indicator, the name and the time; then what it's waiting
+   for (or its state) and the PR chips. Selected, it's a filled card. */
 .session {
   display: grid;
-  grid-template-columns: 8px 1fr auto;
-  column-gap: 9px;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
+  column-gap: 10px;
+  row-gap: 1px;
   align-items: center;
-  padding: 5px 8px 5px 18px;
-  border-radius: 5px;
+  padding: 6px 8px 6px 10px;
+  border-radius: 8px;
+}
+
+.session + .session {
+  margin-top: 1px;
 }
 
 .session:hover {
@@ -372,19 +407,41 @@ body,
   background: var(--selected);
 }
 
+.session > .dot {
+  grid-area: 1 / 1;
+}
+
 .session .name {
+  grid-area: 1 / 2;
+  font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.session .when {
+  grid-area: 1 / 3;
+  justify-self: end;
+  color: var(--muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
 .session .detail {
-  grid-column: 2 / span 2;
+  grid-area: 2 / 2;
   color: var(--muted);
   font-size: 12px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* The 18px chips take no more height than the detail's line, so a row that gains a PR
+   doesn't grow and nudge the rows below. */
+.session .prs {
+  grid-area: 2 / 3;
+  justify-self: end;
+  margin-block: -1px;
 }
 
 /* PR links: the newest as `#N`, then `+k` for the rest. */
@@ -421,8 +478,32 @@ body,
   background: var(--stopped);
 }
 
+/* Working: a 3×3 grid whose cells brighten in a wave from the top-left corner, one
+   diagonal after another, once every 750ms. */
 .state-working .dot {
+  display: grid;
+  grid-template-columns: repeat(3, 2px);
+  grid-auto-rows: 2px;
+  gap: 1px;
+  border-radius: 0;
+  background: none;
+}
+
+.state-working .dot .cell {
+  border-radius: 0.5px;
   background: var(--working);
+  animation: cell-wave 750ms ease-in-out infinite;
+  animation-delay: calc((var(--diagonal) - 4) * 150ms);
+}
+
+@keyframes cell-wave {
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  40% {
+    opacity: 1;
+  }
 }
 
 .state-done .dot {
@@ -450,29 +531,36 @@ body,
 
 /* The one thing in the list that is waiting on you. */
 
+/* Needs you: the amber dot breathes, slowly. */
 .state-needs-you .dot {
   background: var(--needs-you);
-  animation: needs-you 2.4s ease-out infinite;
+  animation: breathe 3s ease-in-out infinite;
 }
 
 .state-needs-you .detail {
   color: var(--needs-you);
 }
 
-@keyframes needs-you {
-  0% {
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--needs-you) 55%, transparent);
-  }
-  70%,
+@keyframes breathe {
+  0%,
   100% {
-    box-shadow: 0 0 0 5px color-mix(in srgb, var(--needs-you) 0%, transparent);
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.8);
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .state-needs-you .dot {
-    animation: none;
-  }
+/* Reduced motion: every indicator is still, and the cells sit at full strength. */
+:root[data-motion="reduce"] .dot,
+:root[data-motion="reduce"] .dot .cell {
+  animation: none;
+}
+
+:root[data-motion="reduce"] .chevron {
+  transition: none;
 }
 
 .session[aria-disabled="true"] {
@@ -515,6 +603,8 @@ body,
   background: none;
   color: var(--muted);
   font: 15px/1 var(--font-ui);
+  opacity: 0;
+  transition: opacity 120ms ease;
 }
 
 .group-action:hover {

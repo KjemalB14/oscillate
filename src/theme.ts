@@ -30,13 +30,26 @@ function applyChrome(mode: Mode) {
   root.dataset.mode = mode;
 }
 
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+/**
+ * `data-motion="reduce"` on the root while macOS reduces motion. Every animation and
+ * transition in `App.css` keys off it, not off the media query, so there's one switch.
+ */
+function applyMotion() {
+  if (reduceMotion.matches) document.documentElement.dataset.motion = "reduce";
+  else delete document.documentElement.dataset.motion;
+}
+
 /**
  * Paints the chrome for the current mode and follows every switch, without a reload.
- * Terminals follow on their own (`createTerminal`).
+ * Terminals follow on their own (`createTerminal`). Follows reduced motion the same way.
  */
 export function startTheme() {
   applyChrome(currentMode());
   onModeChange(applyChrome);
+  applyMotion();
+  reduceMotion.addEventListener("change", applyMotion);
 }
 
 /** Resolves once both bundled faces are ready, so xterm measures the right cell. */

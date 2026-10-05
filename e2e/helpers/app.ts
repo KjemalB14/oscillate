@@ -90,13 +90,14 @@ export async function show(fixture: string | object[]): Promise<void> {
 /**
  * A background session the app can attach, for `show([...])`: idle, named `name` (the
  * id by default), with its `cwd` a real directory from `fake.repo(repo)`. Ids must be
- * letters and digits, as real ones are; the app refuses anything else.
+ * letters and digits, as real ones are; the app refuses anything else. `cwd` overrides
+ * the directory, as for a `fake.gitWorktree()`.
  */
-export function attachable(id: string, opts: { repo?: string; name?: string } = {}): object {
+export function attachable(id: string, opts: { repo?: string; name?: string; cwd?: string } = {}): object {
   const seq = [...id].reduce((n, c) => n + c.charCodeAt(0), 0);
   return {
     id,
-    cwd: fake.repo(opts.repo ?? "repo"),
+    cwd: opts.cwd ?? fake.repo(opts.repo ?? "repo"),
     kind: "background",
     startedAt: 1790000000000 + seq,
     sessionId: `${id}-0000-0000-0000-000000000000`,
