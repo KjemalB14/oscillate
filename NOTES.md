@@ -45,10 +45,16 @@ way, with what was rejected:
   stay at their first frame (opacity 0, which WebdriverIO's `isDisplayed` counts as
   hidden), and the sidebar's transition never settles. `caffeinate -dimsu` didn't help.
   This is very likely slice 2's unexplained double-click flake too.
-  **The proposed fix, not built:** in e2e builds only, call WKWebView's private
-  `_setWindowOcclusionDetectionEnabled:NO` on the main webview in `setup` (objc2, as
-  `glass.rs` does), the way Playwright's WebKit runner keeps hidden pages ticking. Then
-  re-run the full suite on the committed tree.
+  **The fix:** in e2e builds only, `keep_ticking_when_covered` (`lib.rs`) calls WKWebView's
+  private `_setWindowOcclusionDetectionEnabled:NO` on the main webview in `setup`, the way
+  Playwright's WebKit runner keeps hidden pages ticking. With it, at the same screenY, the
+  probe read 31 frames in 500ms and `sidebar-resize` passed 9/9.
+  **The control is not proved.** By then the window was no longer covered, so a build
+  without the call ticked too. WebDriver's minimize is a no-op in this driver, and the job
+  has no Accessibility grant, so it couldn't cover the window on demand. The next frozen
+  run is the test: it should not freeze.
+  **Rejected:** `animation-fill-mode`, or no opacity in the entrances. They'd only hide the
+  frozen clock from `isDisplayed`; the sidebar's transition would still never settle.
 - **The window grants didn't reach this job.** It was a `--bg` session claimed from the
   daemon's spare pool, attached in the installed app, and `drive-window` and
   `screencapture` both failed (no Accessibility, no Screen Recording). Its process tree

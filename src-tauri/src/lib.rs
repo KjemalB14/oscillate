@@ -224,6 +224,31 @@ fn layout_set(layout: State<'_, layout::Layout>, next: layout::Sidebar) -> Resul
     layout.set(next)
 }
 
+/// E2e builds only: the page's clock keeps running while the window is covered. The
+/// harness's window often opens behind the author's own, macOS reports it occluded, and
+/// WebKit then stops every animation and transition on its first frame (NOTES.md,
+/// *Slice 4's motion*). A real window that's covered has no one to show a frame to.
+#[cfg(all(feature = "e2e", target_os = "macos"))]
+fn keep_ticking_when_covered(window: &tauri::WebviewWindow) {
+    let done = window.with_webview(|webview| {
+        use objc2::runtime::AnyObject;
+        use objc2::{msg_send, sel};
+        // SAFETY: on macOS, `inner` is this window's live WKWebView, and the closure runs
+        // on the main thread. The private selector is checked before it's sent.
+        let wk: &AnyObject = unsafe { &*webview.inner().cast() };
+        let known: bool = unsafe { msg_send![wk, respondsToSelector: sel!(_setWindowOcclusionDetectionEnabled:)] };
+        if known {
+            let _: () = unsafe { msg_send![wk, _setWindowOcclusionDetectionEnabled: false] };
+            eprintln!("oscillate: e2e: occlusion detection off");
+        } else {
+            eprintln!("oscillate: e2e: no _setWindowOcclusionDetectionEnabled:; a covered window stops animating");
+        }
+    });
+    if let Err(e) = done {
+        eprintln!("oscillate: e2e: occlusion detection left on ({e})");
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default()
@@ -272,6 +297,8 @@ pub fn run() {
             app.set_menu(menu(app.handle())?)?;
             let window = app.get_webview_window("main").ok_or("no main window")?;
             app.manage(glass::apply(&window));
+            #[cfg(all(feature = "e2e", target_os = "macos"))]
+            keep_ticking_when_covered(&window);
             Ok(())
         })
         .on_menu_event(|app, event| {
