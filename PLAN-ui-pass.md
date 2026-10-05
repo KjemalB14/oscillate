@@ -33,9 +33,37 @@ wants it to look and feel like zeron while daily use and MVP 2's `/decide` carry
   the class is missing or fails, the window is opaque in the ground color, and one line
   is logged. The app is ad-hoc signed and never goes to the App Store, so a private API
   costs only the risk that a macOS update breaks it, and the fallback covers that.
-- **The glass shows through the terminal.** xterm's background is the theme's color at
-  about 80% alpha, with `allowTransparency`, like the author's Ghostty at 0.75. Chrome
-  surfaces are translucent tints over the same glass.
+- **The glass shows through the terminal, on xterm's DOM renderer, if it is fast enough**
+  (re-decided 2026-10-04, after the spike). Chrome surfaces are translucent tints over
+  the same glass.
+  - **A speed gate comes first.** Fixed bytes are replayed straight into a pane with
+    `term.write` under each renderer: a recorded long streaming Claude turn, plus
+    `bench-flood`'s `seq` and `cat` payloads. The DOM renderer must drain the Claude turn
+    within 2× of WebGL with no visible stall, and criterion 22 must hold with it.
+    `seq` and `cat` are recorded, not gated, as chapter 1 recorded `cat`.
+  - **If it fails, the terminal is opaque on WebGL beside the glass chrome.** That's
+    the end of it for this chapter. There's no third renderer attempt.
+  - **The renderer follows transparency.** One switch, as `TERMINAL_ALPHA` already
+    drives `allowTransparency`: a translucent terminal uses DOM, and an opaque one
+    (glass off, or the fallback) keeps WebGL, with its speed and correct dim.
+  - **Truecolor dim is fixed in our own CSS, not in xterm.** The DOM renderer halves
+    palette colors for SGR 2, but writes RGB foregrounds inline, undimmed, and
+    `xterm.css` pins `.xterm-dim` at `opacity: 1 !important`. One rule in our CSS dims
+    `.xterm-dim` spans that have an inline color and no background, so palette colors
+    aren't dimmed twice and backgrounds never are.
+  - **A minimal repro of the WebGL bug** (a translucent light background drawn flat
+    white, dim text at about 7%) is written as a standalone page. The author files it
+    upstream. WebGL comes back for the translucent terminal only if upstream fixes it.
+- **The alphas come from the glass, measured, not from pure black and white.** The
+  glass's darkest and lightest are sampled in each mode, with the window over a black
+  field and over a white field. Those replace pure black and white as `check-theme`'s
+  backdrops, and each surface gets the lowest alpha that passes over them.
+  - **The terminal's bar:** the theme's foreground ≥ 4.5:1 over those backdrops, and
+    Claude's light-mode dim status line no fainter than in the opaque terminal (176 on
+    251, as in Ghostty).
+  - **If that floor sits well above 55%** (the look the spike saw), the palette's text,
+    muted and state colors move further from the ground to buy it down. They stop at
+    55%, or where the ramp stops reading as zeron's, whichever comes first.
 - **Geist for the chrome and JetBrains Mono for the terminal, both bundled** (OFL).
   JetBrains Mono is what the author uses in Ghostty. Today the app only gets it because
   it's installed in `~/Library/Fonts`.
@@ -130,7 +158,29 @@ wants it to look and feel like zeron while daily use and MVP 2's `/decide` carry
   trade chapter 4 rejected for notifications.
 - **CSS-only frost.** It's safe, but the desktop never shows through.
 - **A glass sidebar beside an opaque terminal.** It's safer for contrast, but it isn't
-  the see-through terminal the author uses in Ghostty.
+  the see-through terminal the author uses in Ghostty. *(Re-weighed 2026-10-04 with the
+  spike's evidence. It's still not the first choice, but it's now the fallback if the
+  DOM renderer fails its speed gate.)*
+- **Chasing the WebGL bug before choosing** (2026-10-04). It would keep WebGL's speed if
+  the bug is ours, but its cost is open-ended, and it may end in an upstream wait. The
+  repro is still written, for upstream.
+- **Patching xterm's pinned beta WebGL addon in place.** Every bump would need it
+  re-checked (`NOTES.md`, *Slice 2's glass spike*).
+- **Timing DOM with chapter 1's bars against Ghostty** (2026-10-04). Panes run only
+  `claude attach` now, so `bench-flood` would need a dev-only shell pane, which is
+  outside invariant 1's spawn list. **Judging speed by hand only** leaves no number to compare
+  against later.
+- **The DOM renderer everywhere** (2026-10-04). It's one path to test, but the opaque
+  fallback would pay DOM's cost for nothing.
+- **Leaving DOM's truecolor dim undimmed** (2026-10-04). Claude's status line would lose
+  its hierarchy.
+- **Contrast over pure black and white at the new alphas** (2026-10-04). At 55%, 33
+  pairs fail. Passing it keeps the sidebar near today's 90–94%, where the spike found
+  the glass barely there. **55% by eye, measured only over the window color**, gives the
+  look but no guarantee over a bright or busy desktop.
+- **Accepting a high floor, or going back to `/decide`, if the measured floor is far
+  above 55%** (2026-10-04). Moving the palette keeps both the guarantee and the look,
+  within the zeron ramp.
 - **Terminal opacity as a setting now.** It would pull a settings surface into this
   chapter. It goes with the themes tab.
 - **Geist Mono in the terminal.** It's zeron's pair, but it changes the face the author
@@ -174,9 +224,12 @@ wants it to look and feel like zeron while daily use and MVP 2's `/decide` carry
     draws dim (SGR 2) glyphs at about 7% instead of 50%, and Claude's status line
     vanishes in light mode. The DOM renderer reads but doesn't dim, and costs
     speed. So the terminal is opaque until slice 2 finds dim text that reads in a
-    translucent terminal: a WebGL fix, or the DOM renderer priced with
+    translucent terminal: a WebGL fix, or the DOM renderer timed with
     `bench-flood`. If neither works, the see-through terminal comes back to
     `/decide`, and the glass can still sit behind the chrome.
+  - **Answered (2026-10-04, slice 2's spike and `/decide`).** The glass composes. The
+    terminal goes see-through on the DOM renderer behind a speed gate, else it stays
+    opaque (*Chosen*, *The glass shows through the terminal*).
 - **Whether the avatar fetch needs a user-visible switch.** It's left out until daily
   use asks for one.
 - **The exact token values.** Slice 1 picks them against criterion 2's script.
@@ -192,11 +245,13 @@ script, or by hand in the release app from a foreground `claude` in Ghostty.
    record. *(hand)*
 2. A committed script reads the tokens for both modes and reports every text/surface
    pair. Primary text is ≥ 4.5:1 and muted text ≥ 3:1. Each translucent surface is
-   composited over both black and white. *(script, exits non-zero on a failure)*
+   composited over the glass's measured darkest and lightest in that mode *(amended
+   2026-10-04: was pure black and white)*. *(script, exits non-zero on a failure)*
 3. In each mode, the terminal's options set the foreground, the background (the
-   theme's color at about 80% alpha), the cursor, the selection, and all 16 ANSI
+   theme's color at `TERMINAL_ALPHA`), the cursor, the selection, and all 16 ANSI
    colors. *(unit check on the theme function)* Claude's diff colors and dim text read
-   clearly in both modes. *(hand)*
+   clearly in both modes. *(hand)* *(Amended 2026-10-04: the alpha is the measured floor
+   from slice 2, or 1 if the DOM renderer fails its gate. It was "about 80%".)*
 4. Geist and JetBrains Mono load from the app's own bundle. `document.fonts` reports
    both loaded from the app's URL, and the release bundle contains both files. *(e2e +
    hand)*
@@ -215,6 +270,26 @@ script, or by hand in the release app from a foreground `claude` in Ghostty.
    terminal refits after each change: its cols match the PTY's. *(e2e)*
 10. Quit and window close are still refused while a trust pane runs. *(existing e2e +
     hand)*
+
+*Added 2026-10-04 by the terminal's `/decide`. They're numbered after 22 so nothing
+above is renumbered.*
+
+23. **The speed gate.** A committed script replays a recorded long streaming Claude
+    turn into a pane under each renderer. DOM drains it within 2× of WebGL's time, with
+    no visible stall. `seq` and `cat` are timed and recorded, not gated. Criterion 22
+    holds with DOM. *(script + hand)* If it fails, the terminal is opaque on WebGL
+    beside the glass, and 24 and 25 don't apply.
+24. With a translucent terminal, the pane uses the DOM renderer. With the glass off
+    (`OSCILLATE_GLASS=off`), the terminal is opaque and on WebGL. *(e2e)*
+25. On the DOM renderer, SGR 2 dims truecolor text: Claude's light-mode status line is
+    no fainter than in the opaque terminal (176 on 251), and a dimmed palette color
+    isn't dimmed twice. *(e2e on computed color + hand)*
+26. `check-theme`'s backdrops are the measured glass values, recorded with how they
+    were sampled. Every surface's alpha is the lowest that passes over them, or 55% if
+    55% passes. The terminal's foreground is ≥ 4.5:1 over them. *(script)*
+27. A minimal standalone repro of the WebGL bug draws a translucent light background
+    flat white, and dim text at about 7%, in WebKit. It's ready for the author to file.
+    *(hand)*
 
 **Slice 3 — Rows**
 11. A row's line 1 is the indicator, the name and the time. Line 2 is `waitingFor` or
@@ -324,3 +399,97 @@ items below while the terminal is opaque. A translucent one needs the layering i
   was whether awaiting the fonts before the first render made them worse. Running the
   two specs alone five times each failed 2 of 5 on `main`'s code and 2 of 5 on this
   branch. That's the same rate, so the slice doesn't change the flake.
+
+## Slice 2 — the glass spike: what it proved and hasn't (2026-10-04)
+
+Built on `slice2-chrome`:
+- `src-tauri/src/glass.rs` puts an `NSGlassEffectView` (Regular, radius 0, autoresizing)
+  under the webview as the content view's bottom subview.
+- The window is `transparent`, with `macOSPrivateApi`.
+- `glass_state` tells the page, and `data-glass="on"` stops it painting the window.
+- `OSCILLATE_GLASS=off`, or a missing class, keeps the window opaque with one stderr line.
+- The terminal host is now the only layer that paints the terminal's background
+  (xterm's own two are made transparent).
+
+Seen in `tauri dev` over a striped test pattern, with Stage Manager off for the shots
+(screenshots in `~/Documents/oscillate-hand-checks/2026-10-04-slice2-spike/`):
+- **The glass composes with the transparent WKWebView: go.** The empty pane shows the
+  pattern blurred, and so does the sidebar, faintly at 90%.
+- **Criterion 7 passes by hand.** With `OSCILLATE_GLASS=off`, stderr has exactly one
+  glass line, and the pane is a uniform `--window` (11,11,12) over the same pattern.
+- **A see-through terminal on WebGL: no-go as it stands.**
+  - In dark, the pattern shows through: barely at 80%, and clearly at 55%.
+  - In light, the WebGL terminal is a flat 255 white at any alpha, and dim text is at
+    about 7%.
+  - The DOM renderer shows the pattern through the light terminal (223–253) and reads
+    dim text, undimmed.
+  - Forcing the WebGL context to `premultipliedAlpha: false` changed nothing.
+- **The alphas will need to come down.** The look criterion 6 describes appeared at 55%
+  for both the sidebar and the terminal. `check-theme`'s contrast over black and white
+  backdrops hasn't been run at those values.
+
+**Not proved:** criterion 6 in a release build, the drag and the traffic lights (the
+title bar isn't touched yet), the DOM renderer's cost (`bench-flood`), and criterion 22's
+budget with the glass on.
+
+**So the chapter goes back to `/decide`**, as *Still open* says, for the terminal only.
+The glass behind the chrome works. The question is what the terminal does:
+- the DOM renderer, timed by `bench-flood`;
+- an opaque terminal beside glass chrome, which this PLAN rejected (*A glass sidebar
+  beside an opaque terminal*), now with evidence;
+- or a fix to xterm's WebGL transparency, first as a minimal repro for upstream.
+
+**Decided (2026-10-04, `/decide`):** *Chosen* → *The glass shows through the terminal*,
+and criteria 23–27. The order of the rest of slice 2:
+1. The speed gate (23). Its verdict picks DOM or the opaque terminal.
+2. The measured backdrops and the alphas (26, then 2 and 3), with the palette moved if
+   the floor is high.
+3. The renderer switch and the dim rule (24, 25), only if 23 passed.
+4. The WebGL repro (27).
+5. The overlay title bar, the header, and sidebar collapse and resize (8–9).
+
+## Slice 2 — the speed gate: built, not run on a real turn (2026-10-04)
+
+- **Built:** `npm run e2e:speed` (`e2e/speed.check.ts`, page side `src/bench.ts`, e2e
+  builds only) and `.claude/scripts/scrub-recording`. `createTerminal(host, { alpha })`
+  now picks the renderer from the alpha (criterion 24's switch). `TERMINAL_ALPHA` is
+  still 1, so nothing ships differently.
+- **Proved on a synthetic turn:** the pipeline runs, and a DOM renderer slowed by
+  120 ms a frame turns it red (2.10×, 132 ms gaps). The floods were at parity:
+  `seq` 795/764 ms and `cat` 310/275 ms (WebGL/DOM).
+- **Not proved:** criterion 23 itself. The author waived recording a real turn and moved
+  on to the chrome. **The terminal stays opaque on WebGL** until the gate runs on a real
+  turn: record one as the script's `--help` says, write `e2e/fixtures/claude-turn.json`,
+  and run `npm run e2e:speed`. Criteria 24–27 wait on it. Criterion 22 with DOM isn't
+  measured either.
+
+## Slice 2 — the chrome: what was built and proved (2026-10-04)
+
+**Built:**
+- `titleBarStyle: "Overlay"` with a hidden title. The traffic lights are at
+  `{ x: 16, y: 23 }`, which centers them in the sidebar's 40px strip beside the toggle.
+- `src/PaneHeader.tsx` shows the name, the repo, the state and the PR chips. Its empty
+  space is a `data-tauri-drag-region`.
+- `layout.rs` keeps `layout.json` (the width, clamped to 208–400, and collapsed) beside
+  `repos.json`.
+- The sidebar's edge resizes it, two clicks reset it, and ⌃⌘S or the toggle collapses
+  it, with a 200ms ease that's off under reduced motion.
+
+**Proved:**
+- **Criterion 8's content** passes in `e2e/pane-header.spec.ts` (by `e2e-author`).
+  Dropping the header's PR chips turned it red. **The drag passed by hand:** a CGEvent
+  drag on the header's empty space moved the dev window by (+100, +50), and back.
+- **Criterion 9** passes in `e2e/sidebar-resize.spec.ts` (by `e2e-author`, 9 tests,
+  including ⌃⌘S never reaching the PTY). Dropping the page's clamp turned it red.
+- **Criterion 6's traffic lights** are inset over the sidebar, in a screenshot of the
+  dev window (`~/Documents/oscillate-hand-checks/2026-10-04-slice2-chrome/`).
+- **Criterion 7** passed by hand in the spike.
+- **Criterion 10:** the existing trust-pane specs pass in the full suite (103/103).
+
+**Not proved:**
+- Criterion 6's see-through terminal: it's parked with the speed gate.
+- Criterion 6's glass in a release build: it's checked once installed.
+- Criterion 10 by hand.
+- Light mode by hand: the header and the strip use the existing roles, which
+  `check-theme` measures.
+- Criterion 22's budget with the glass on.

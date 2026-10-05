@@ -1,0 +1,111 @@
+#!/usr/bin/env python3
+# purpose: Turn a `script -r` recording into the speed gate's fixture, with personal strings scrubbed (PLAN-ui-pass.md item 23).
+"""Converts a macOS `script -r` recording of a Claude turn into the fixture that
+e2e/speed.check.ts replays, and scrubs personal strings from it.
+
+Only the recorded output is kept, as {t: ms since the first output, b64}. The home
+path, the user name, the account's full name (and each part of it) and git's
+user.email are replaced by runs of 'x' of the same length, so every cursor movement in
+the recording still lands where it did. The replacement runs over the whole stream, so
+a string split across two chunks is caught too.
+
+  scrub-recording turn.rec --size turn.size -o e2e/fixtures/claude-turn.json
+  scrub-recording --check e2e/fixtures/claude-turn.json
+
+Exits 1 if any personal string survives (or, with --check, is present).
+"""
+import argparse, base64, json, os, pwd, re, struct, subprocess, sys
+
+HEADER = struct.Struct("<QQII")  # len, sec, usec, direction ('s' 'i' 'o' 'e')
+
+
+def personal(extra):
+    """Every string that must not reach the public repo, longest first."""
+    found = set(extra)
+    user = os.environ.get("USER") or pwd.getpwuid(os.getuid()).pw_name
+    found.add(user)
+    found.add(os.path.expanduser("~"))
+    full = pwd.getpwuid(os.getuid()).pw_gecos.split(",")[0]
+    if full:
+        found.add(full)
+        found.update(part for part in full.split() if len(part) >= 3)
+    try:
+        email = subprocess.run(["git", "config", "user.email"], capture_output=True, text=True).stdout.strip()
+        if email:
+            found.update({email, email.split("@")[0]})
+    except OSError:
+        pass
+    return sorted((s for s in found if s), key=len, reverse=True)
+
+
+def pattern(strings):
+    return re.compile(b"|".join(re.escape(s.encode()) for s in strings), re.IGNORECASE)
+
+
+def read_recording(path):
+    """The output records of a `script -r` file, as (seconds, bytes)."""
+    data = open(path, "rb").read()
+    out, pos = [], 0
+    while pos < len(data):
+        if pos + HEADER.size > len(data):
+            sys.exit(f"scrub-recording: {path} ends inside a record header at byte {pos}")
+        length, sec, usec, direction = HEADER.unpack_from(data, pos)
+        pos += HEADER.size
+        body = data[pos : pos + length]
+        if len(body) != length:
+            sys.exit(f"scrub-recording: {path} ends inside a record at byte {pos}")
+        pos += length
+        if direction == ord("o") and body:
+            out.append((sec + usec / 1e6, body))
+        elif direction not in b"sioe":
+            sys.exit(f"scrub-recording: {path} isn't a `script -r` recording (direction {direction})")
+    if not out:
+        sys.exit(f"scrub-recording: {path} has no output records")
+    return out
+
+
+def check(path, strings):
+    fixture = json.load(open(path))
+    stream = b"".join(base64.b64decode(c["b64"]) for c in fixture["chunks"])
+    hits = sorted({m.group().decode(errors="replace") for m in pattern(strings).finditer(stream)})
+    if hits:
+        sys.exit(f"scrub-recording: {path} still contains {len(hits)} personal string(s)")
+    print(f"{path}: clean ({len(fixture['chunks'])} chunks, {len(stream)} bytes, {fixture['cols']}x{fixture['rows']})")
+
+
+def main():
+    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("recording", nargs="?", help="the `script -r` file")
+    p.add_argument("--size", help="a file holding `stty size` output (rows cols) from the recording terminal")
+    p.add_argument("-o", "--output", help="where to write the fixture JSON (refuses to overwrite without --force)")
+    p.add_argument("--force", action="store_true", help="overwrite --output if it exists")
+    p.add_argument("--also", action="append", default=[], help="another string to scrub (repeatable)")
+    p.add_argument("--check", metavar="FIXTURE", help="only check an existing fixture for personal strings")
+    a = p.parse_args()
+    strings = personal(a.also)
+
+    if a.check:
+        return check(a.check, strings)
+    if not (a.recording and a.size and a.output):
+        p.error("a recording, --size and --output are needed (or --check FIXTURE)")
+    if os.path.exists(a.output) and not a.force:
+        sys.exit(f"scrub-recording: {a.output} exists; pass --force to overwrite it")
+    rows, cols = (int(n) for n in open(a.size).read().split())
+
+    records = read_recording(a.recording)
+    stream = bytearray(b"".join(body for _, body in records))
+    scrubbed = pattern(strings).sub(lambda m: b"x" * len(m.group()), bytes(stream))
+    assert len(scrubbed) == len(stream)
+
+    start, pos, chunks = records[0][0], 0, []
+    for when, body in records:
+        piece = scrubbed[pos : pos + len(body)]
+        pos += len(body)
+        chunks.append({"t": round((when - start) * 1000, 1), "b64": base64.b64encode(piece).decode()})
+    with open(a.output, "w") as f:
+        json.dump({"cols": cols, "rows": rows, "source": "script -r, scrubbed by scrub-recording", "chunks": chunks}, f)
+    check(a.output, strings)
+
+
+if __name__ == "__main__":
+    main()

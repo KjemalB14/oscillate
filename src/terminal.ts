@@ -16,8 +16,15 @@ function openOnCmdClick(event: MouseEvent, uri: string) {
 /**
  * A terminal as every pane has it, opened in `host` and fitted to it. It follows macOS
  * between light and dark until `dispose`, which also disposes the terminal.
+ *
+ * The renderer follows `alpha`: an opaque terminal draws with WebGL, and a translucent
+ * one with the DOM renderer, because WebGL draws a translucent light background flat
+ * white and dim text at about 7% (`PLAN-ui-pass.md`, *Slice 2 — the glass spike*).
  */
-export function createTerminal(host: HTMLElement): {
+export function createTerminal(
+  host: HTMLElement,
+  { alpha = TERMINAL_ALPHA }: { alpha?: number } = {},
+): {
   term: Terminal;
   fit: FitAddon;
   dispose: () => void;
@@ -34,9 +41,8 @@ export function createTerminal(host: HTMLElement): {
     // as Ghostty does. Without it a bare ESC is ambiguous and Esc-Esc doesn't clear.
     vtExtensions: { kittyKeyboard: true },
     linkHandler: { activate: openOnCmdClick }, // OSC 8
-    // Only a translucent background (`TERMINAL_ALPHA`) needs it, and it costs dim text.
-    allowTransparency: TERMINAL_ALPHA < 1,
-    theme: terminalTheme(currentMode()),
+    allowTransparency: alpha < 1,
+    theme: terminalTheme(currentMode(), alpha),
   });
   const fit = new FitAddon();
   term.loadAddon(fit);
@@ -45,15 +51,17 @@ export function createTerminal(host: HTMLElement): {
   term.loadAddon(new WebLinksAddon(openOnCmdClick));
 
   term.open(host);
-  try {
-    const webgl = new WebglAddon();
-    webgl.onContextLoss(() => webgl.dispose()); // falls back to the DOM renderer
-    term.loadAddon(webgl);
-  } catch (e) {
-    console.warn("WebGL renderer unavailable, using DOM:", e);
+  if (alpha === 1) {
+    try {
+      const webgl = new WebglAddon();
+      webgl.onContextLoss(() => webgl.dispose()); // falls back to the DOM renderer
+      term.loadAddon(webgl);
+    } catch (e) {
+      console.warn("WebGL renderer unavailable, using DOM:", e);
+    }
   }
   fit.fit();
-  const unfollow = onModeChange((mode) => (term.options.theme = terminalTheme(mode)));
+  const unfollow = onModeChange((mode) => (term.options.theme = terminalTheme(mode, alpha)));
   return {
     term,
     fit,

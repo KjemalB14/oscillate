@@ -165,11 +165,11 @@ const ANSI_KEYS = [
   "brightBlue", "brightMagenta", "brightCyan", "brightWhite",
 ] as const;
 
-/** xterm's theme for a mode: every color set, the background at `TERMINAL_ALPHA`. */
-export function terminalTheme(mode: Mode): ITheme {
+/** xterm's theme for a mode: every color set, the background at `alpha`. */
+export function terminalTheme(mode: Mode, alpha = TERMINAL_ALPHA): ITheme {
   const { terminal: t, chrome } = palettes[mode];
   const theme: ITheme = {
-    background: withAlpha(t.background, TERMINAL_ALPHA),
+    background: withAlpha(t.background, alpha),
     foreground: t.foreground,
     cursor: t.cursor,
     cursorAccent: t.background,

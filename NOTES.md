@@ -9,6 +9,98 @@ Newest entries at the top.
 
 ---
 
+## 2026-10-04 — Slice 2's chrome
+
+The results are in `PLAN-ui-pass.md` → *Slice 2 — the chrome*. What it cost to find
+out:
+- **WebDriver's mouse in WKWebView is thin.**
+  - A drag sends only `mousedown` and `mouseup`: no pointer events, and no
+    `mousemove`.
+  - A double-click is two `click`s with `detail: 0`, and no `dblclick`.
+  - So the edge uses window mouse listeners, applies the release's position as a
+    move, and detects a double-click from two clicks within 500ms, ignoring a click
+    that ends a drag.
+  - **Rejected:** pointer capture and `onDoubleClick`. They're right for a real mouse,
+    but no spec could drive them.
+- **The first full run failed the double-click reset, then the tests after it.** It
+  passed alone and in a second full run (103/103). The guess, not proved, is that
+  under the suite's load WebDriver's two clicks landed more than 500ms apart. Watch
+  for it.
+- **`trafficLightPosition` doesn't set the lights' top inset.** `y: 14` centered them
+  at about 11pt; `y: 23` centers them in the 40px strip. It was measured from
+  screenshots.
+- **A dev window once came up with this session selected and attached**, beside the
+  installed app's attach of the same session, and drew garbage. No code path selects
+  a row on its own, and a second launch didn't repeat it, so a stray click is the
+  likely cause. The dev app was quit within seconds. **Keep dev windows off the
+  session a job runs in:** screenshot, and quit.
+- **The fake attach now logs its PTY's size** (`fake.sizes`), and each pane shows
+  `data-cols` and `data-rows`, so a spec can check the refit against the PTY itself.
+
+---
+
+## 2026-10-04 — The speed gate, built and parked
+
+The status is in `PLAN-ui-pass.md` → *Slice 2 — the speed gate*.
+- **The renderer is not where chapter 1's flood time went.** Written straight into
+  xterm, the 20MB `cat` drains in about 0.3 s under either renderer, and through the
+  PTY and IPC it took 1.71 s. The pipe from Rust to the page is the cost.
+- **The paced replay is the sharper detector.** With DOM slowed by 120 ms a frame, the
+  fast drain only just failed (2.10×), while the paced run logged 394 frames over 50 ms.
+- **Two WDIO quirks:** `browser.execute` returns an unset value as `null`, not
+  `undefined`, so a poll for "done" must test `!= null`. And `this.timeout()` inside an
+  `it` is ignored under WDIO's wrapper: a long probe sets `--mochaOpts.timeout`.
+
+---
+
+## 2026-10-04 — The terminal's `/decide`: DOM behind a speed gate
+
+The choice, its gate and the rejections are in `PLAN-ui-pass.md` → *Chosen*, *The glass
+shows through the terminal*, and criteria 23–27. What was found on the way that shaped
+it:
+- **DOM's "reads, but isn't dimmed" is an xterm bug, and our CSS can fix it.** The DOM
+  renderer gives SGR 2 a generated class color at half opacity only for palette
+  colors. An RGB foreground goes inline (`color:#666`), undimmed, and `xterm.css` pins
+  `.xterm-dim` at `opacity: 1 !important`. Claude's status line is truecolor, so it
+  hits exactly that path. The rule has to skip cells with a background (or it dims the
+  background too), and palette-colored cells (or they're dimmed twice).
+- **`bench-flood` can't run in a pane any more.** It needs a shell, and panes run only
+  `claude attach`. A dev-only shell pane would be a spawn path outside invariant 1. So
+  the speed is measured by replaying bytes into `term.write`, which compares the two
+  renderers on the same input instead of comparing against Ghostty.
+- **The contrast check's backdrops decide the look.** With the sidebar at 55%,
+  `check-theme` fails 33 pairs over pure black and white (dark text on the sidebar over
+  white is 3.53:1). But the glass is the backdrop, and it frosts. So the honest
+  extremes are what the glass shows at its darkest and lightest, measured.
+
+---
+
+## 2026-10-04 — Slice 2's glass spike
+
+The results are in `PLAN-ui-pass.md` → *Slice 2 — the glass spike*.
+- **`NSGlassEffectView` is public AppKit in the macOS 26 SDK** (`objc2-app-kit` 0.3.2
+  binds it), not the private API the PLAN calls it. The private part is the transparent
+  window. The module still checks the class at runtime, so an older macOS gets the
+  opaque fallback.
+- **The cheapest sibling placement worked first time:** the content view's bottom
+  subview, under wry's WKWebView. Reparenting wasn't needed.
+- **Judging glass needs something busy behind the window.** The author's wallpaper is
+  black, and Stage Manager hides every other app's window behind the front one. A
+  generated stripe-and-text pattern in Preview, with Stage Manager off for the shots
+  (`defaults write com.apple.WindowManager GloballyEnabled`, which applies at once), made
+  the blur measurable by pixel sampling.
+- **WebGL is the blocker, not the glass.** In light mode xterm's WebGL canvas comes out
+  flat white over glass at any alpha, while the DOM renderer shows the backdrop.
+  Declaring the context straight-alpha didn't help. Two guesses are left unchecked: the
+  canvas's own clear color, or the atlas's glyph alpha. **Rejected for now:** patching
+  xterm's addon in place. It's a pinned beta (`CLAUDE.md`), and a local patch would
+  need re-checking on every bump.
+- **Most of the look's effect lives in the alphas.** At 90% and 80% the glass is barely
+  there. At 55% it's the Ghostty look. The palette's contrast guarantees were made at
+  the high values.
+
+---
+
 ## 2026-10-04 — Slice 1's hand items: the terminal was never translucent
 
 The results are in `PLAN-ui-pass.md` → *Slice 1's hand items*. What it cost to find out,

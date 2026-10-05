@@ -129,6 +129,18 @@ zeron, from tokens to a ⌘K palette. Its decisions and criteria are in `PLAN-ui
   `npm run theme:check` measures contrast, and checks that xterm can parse every
   terminal color. Its hand items passed after a fix. **The terminal is opaque**
   (`TERMINAL_ALPHA = 1`) until slice 2 makes dim text read under translucent WebGL.
+- **Slice 2, *Chrome*, is merged.**
+  - `glass.rs` puts `NSGlassEffectView` behind a transparent window.
+    `OSCILLATE_GLASS=off`, or no such class, keeps it opaque.
+  - The title bar is an overlay. Its traffic lights sit in the sidebar's 40px strip,
+    beside the toggle. `src/PaneHeader.tsx` names the selected session, and its empty
+    space drags the window.
+  - The sidebar resizes within 208–400px, and ⌃⌘S collapses it. `layout.rs` keeps
+    both in `layout.json`.
+  - **The terminal stays opaque on WebGL.** The see-through terminal waits on the
+    speed gate (`npm run e2e:speed`), which is parked without a real recorded turn.
+    The alphas wait on measuring the glass (`BACKLOG.md`, *The see-through terminal
+    and the glass alphas*).
 
 - Dev: `npm run tauri dev`. Release binary: `npx tauri build --no-bundle`.
 - Install: quit the app, then `npx tauri build` and `ditto

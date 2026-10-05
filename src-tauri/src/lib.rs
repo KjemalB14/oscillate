@@ -1,6 +1,8 @@
 mod attention;
 mod claude;
 mod endsession;
+mod glass;
+mod layout;
 mod newsession;
 mod notifications;
 mod poll;
@@ -168,6 +170,12 @@ fn open_pr(app: AppHandle, model: State<'_, SessionModel>, href: String) -> Resu
     app.opener().open_url(href, None::<&str>).map_err(|e| e.to_string())
 }
 
+/// Whether the glass is behind the window; the page paints it opaque if not.
+#[tauri::command]
+fn glass_state(glass: State<'_, glass::Glass>) -> bool {
+    glass.0
+}
+
 #[tauri::command]
 fn repos_list(repos: State<'_, repos::Repos>) -> Vec<String> {
     repos.list()
@@ -185,6 +193,17 @@ fn repos_add(app: AppHandle, repos: State<'_, repos::Repos>) -> Result<Vec<Strin
 #[tauri::command]
 fn repos_remove(repos: State<'_, repos::Repos>, path: String) -> Result<Vec<String>, String> {
     repos.remove(&path)
+}
+
+#[tauri::command]
+fn layout_get(layout: State<'_, layout::Layout>) -> layout::Sidebar {
+    layout.get()
+}
+
+/// Stores the sidebar's width (clamped) and collapsed state; returns what was stored.
+#[tauri::command]
+fn layout_set(layout: State<'_, layout::Layout>, next: layout::Sidebar) -> Result<layout::Sidebar, String> {
+    layout.set(next)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -208,13 +227,15 @@ pub fn run() {
                 .unwrap_or_else(|| {
                     PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(".claude")
                 });
-            // `OSCILLATE_DATA_DIR` keeps e2e runs' `repos.json` in their temp dir.
+            // `OSCILLATE_DATA_DIR` keeps e2e runs' `repos.json` and `layout.json` in their
+            // temp dir.
             let data_dir = match std::env::var_os("OSCILLATE_DATA_DIR").filter(|d| !d.is_empty()) {
                 Some(dir) => PathBuf::from(dir),
                 None => app.path().app_data_dir()?,
             };
             // Both before the poller, whose first list reads them.
             app.manage(repos::Repos::load(&data_dir));
+            app.manage(layout::Layout::load(&data_dir));
             app.manage(notifications::Notifier::new(app.handle()));
             let (tx, rx) = mpsc::channel();
             let poll_now = tx.clone();
@@ -230,6 +251,8 @@ pub fn run() {
             app.manage(SessionModel { poller, poll_now, _watcher: watcher });
             pty::watch(app.handle().clone());
             app.set_menu(menu(app.handle())?)?;
+            let window = app.get_webview_window("main").ok_or("no main window")?;
+            app.manage(glass::apply(&window));
             Ok(())
         })
         .on_menu_event(|app, event| {
@@ -258,8 +281,11 @@ pub fn run() {
             repos_list,
             repos_add,
             repos_remove,
+            layout_get,
+            layout_set,
             set_visible_session,
             open_pr,
+            glass_state,
             e2e_notification_response,
             pty::pty_spawn,
             pty::pty_write,

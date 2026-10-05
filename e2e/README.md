@@ -97,7 +97,9 @@ when nothing changed.
     attach. Its `cwd` is a real directory, `fake.repo(repo)`. Ids are letters and
     digits only; the app refuses anything else.
   - `fake.attaches(id?)` (with each start time `at`), `fake.attachExits(id?)`,
-    `fake.agentViews()` and `fake.keys(id, pid?)` read the log.
+    `fake.agentViews()` and `fake.keys(id, pid?)` read the log. `fake.sizes(id, pid?)`
+    is every size an attach saw its PTY at (`rows`, `cols`): one at start, and one per
+    resize. The last one is the PTY's size now.
     `fake.running()` reads `ps`: the live `attach` pids by session id, and the live
     agent-view pids.
   - `fake.answerBg({ id, stdout?, stderr?, exit?, delayMs? })` sets the next `--bg`

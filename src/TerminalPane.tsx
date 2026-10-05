@@ -41,12 +41,15 @@ export function TerminalPane({ session, label, visible, attempt, onStatus, onRea
   const visibleNow = useRef(visible);
   visibleNow.current = visible;
   const [ended, setEnded] = useState<string | null>(null);
+  // The terminal's size, shown as `data-cols`/`data-rows` for e2e to match with the PTY's.
+  const [size, setSize] = useState<{ cols: number; rows: number } | null>(null);
 
   // The terminal: one per pane, for the pane's whole life.
   useEffect(() => {
     const { term: t, fit: f, dispose } = createTerminal(host.current!);
     term.current = t;
     fit.current = f;
+    setSize({ cols: t.cols, rows: t.rows });
 
     // Only a live PTY is written to; `pty` is cleared the moment it exits. What is typed
     // while attaching is held for it, so keys right after a click aren't lost.
@@ -58,7 +61,10 @@ export function TerminalPane({ session, label, visible, attempt, onStatus, onRea
     const input = t.onData((d) => send(encoder.encode(d)));
     // Mouse reports in X10 mode arrive as a binary string, one byte per char.
     const binary = t.onBinary((d) => send(Uint8Array.from(d, (c) => c.charCodeAt(0) & 0xff)));
-    const resize = t.onResize(({ cols, rows }) => pty.current?.resize(cols, rows));
+    const resize = t.onResize(({ cols, rows }) => {
+      pty.current?.resize(cols, rows);
+      setSize({ cols, rows });
+    });
     const observer = new ResizeObserver(() => f.fit());
     observer.observe(host.current!);
 
@@ -162,6 +168,8 @@ export function TerminalPane({ session, label, visible, attempt, onStatus, onRea
       className={`terminal-pane${visible ? "" : " hidden"}`}
       aria-label={`${label} terminal`}
       aria-hidden={!visible || undefined}
+      data-cols={size?.cols}
+      data-rows={size?.rows}
     >
       <div ref={host} className="terminal-host" />
       {ended && (
