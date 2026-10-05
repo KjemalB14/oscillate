@@ -154,7 +154,7 @@ zeron, from tokens to a ⌘K palette. Its decisions and criteria are in `PLAN-ui
     `https://github.com/<owner>.png`, fetched once through `NSURLSession`, and cached in
     the app data dir's `avatars/`. Any miss is a folder glyph. E2e builds fetch only
     from the harness's local server (`OSCILLATE_E2E_AVATAR_BASE`).
-- **Slice 4, *Motion*, is built** on `slice4-motion`, not yet merged.
+- **Slice 4, *Motion*, is merged** (2026-10-05). It isn't installed yet.
   - Every duration is a variable in `src/motion.css`'s catalog, and all are 0 under
     `data-motion="reduce"`. Only the state indicators' loops name their own.
   - The row menu, PR menu, remove confirm, new-session box and quit notice sit on one
@@ -170,6 +170,8 @@ zeron, from tokens to a ⌘K palette. Its decisions and criteria are in `PLAN-ui
   `OSCILLATE_CLAUDE_DIR` points the watch at). **Specs (`e2e/*.spec.ts`) are written by
   the `e2e-author` agent only**; a hook refuses everyone else. The rest of `e2e/` is the
   harness. See `e2e/README.md`.
+  - E2e builds turn off WKWebView's occlusion detection, so a window that opens behind
+    yours still animates (NOTES.md, *Slice 4's motion*).
 - `@xterm/*` is pinned to 6.1.0 betas for the kitty keyboard protocol. Don't
   downgrade to 6.0: Esc Esc stops working in Claude.
 - Rust lives in `~/.cargo/bin`.

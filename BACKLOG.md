@@ -125,7 +125,8 @@ UI pass, from zeron*. It runs while daily use and MVP 2's `/decide` carry on.
   failed 2 of 5 on `main` and 2 of 5 on chapter 5's slice 1, `PLAN-ui-pass.md`) (`sidebar-order.spec.ts`, item 4, and now
   `notifications.spec.ts` item 3, which also reloads: 1 of 3 full runs, 2026-10-01). It timed out
   at 30s in 2 of 8 full runs on slice 4's branch, 0 of 4 on `main`, and 2 of 5 in slice
-  3 (`NOTES.md`, *Chapter 3, slice 4*). The hang is a WebDriver `execute` across
+  3 (`NOTES.md`, *Chapter 3, slice 4*). In chapter 5's slice 4 (2026-10-05), it failed
+  2 of 3 full runs and 1 of 4 alone. The hang is a WebDriver `execute` across
   `location.reload()`. Next: log each `execute`'s start and end around the reload in a
   failing run, before changing anything.
 - [ ] **Thread view.** A read-only, custom-formatted rendering of the session transcript
