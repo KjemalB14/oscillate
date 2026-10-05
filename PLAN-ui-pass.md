@@ -493,3 +493,64 @@ and criteria 23–27. The order of the rest of slice 2:
 - Light mode by hand: the header and the strip use the existing roles, which
   `check-theme` measures.
 - Criterion 22's budget with the glass on.
+
+## Slice 3 — Rows: what was built and proved (2026-10-04)
+
+**Built:**
+- **`pr_links.rs` reads `updatedAt` too**, from the file it already read. Only the form
+  Claude Code writes (`2026-10-04T23:17:49.030Z`) is a time. Any other is
+  `BadUpdatedAt`, a missing one is `NoUpdatedAt`, and each logs once per session.
+  `Session.updatedAt` carries it to the page.
+- **`src/ago.ts`** turns it into `now`, `Nm`, `Nh` or `Nd`. `useNow` re-renders every 30s
+  rather than every minute, so criterion 12's "within 60s" holds with room to spare.
+  Each render reads the clock afresh.
+- **`StateDot`** (`Sidebar.tsx`, also in the header):
+  - Working is nine cells, with a 750ms wave across the diagonals.
+  - Needs you breathes over 3s, in scale and opacity, instead of the old ring.
+  - **`theme.ts` mirrors Reduce motion as `data-motion="reduce"`** on the root, and
+    every animation and transition in `App.css` keys off it. The two old media queries
+    went.
+- **Group headers** run avatar, name (text color), count. The chevron moved to the
+  right end (`order: 1`), and it and the group's actions fade in on hover or focus.
+- **`avatars.rs`:**
+  - It walks up from the group's directory to `.git`, follows a worktree's `.git` file
+    and `commondir`, and reads `[remote "origin"]`'s url.
+  - It accepts only a github.com owner GitHub would allow.
+  - It fetches `https://github.com/<owner>.png?size=64` once per owner per process,
+    through `NSURLSession`, which follows the redirect. Only a 200 that is a PNG, JPEG,
+    GIF or WebP (≤ 1 MiB) is kept, as `<data dir>/avatars/<owner>`.
+  - `repo_avatar` answers only for a listed `cwd` or an added repo. A repo under the
+    Claude dir is a miss (invariant 5).
+- **The harness:**
+  - `helpers/avatar-server.ts` is the local stand-in. The e2e build reads its base URL
+    from the file `OSCILLATE_E2E_AVATAR_BASE` names, and fetches nothing without it.
+  - `fake.gitRepo`, `fake.gitWorktree`, `fake.avatarCache` and `attachable({ cwd })`
+    are new (`e2e/README.md`).
+
+**Proved:**
+- **Criteria 11–13** pass in `e2e/rows.spec.ts` (by `e2e-author`, 23 tests). Each break
+  turned its claim red:
+  - Dropping the state's words from line 2 failed 11.
+  - A 120s clock failed 12's "`1m` within 60s". It also failed "a bad `updatedAt`
+    replacing a good one", which read `2m` for `3m`. That showed a render measured
+    against the last tick, not the current time, so `useNow` now reads the clock on
+    every render.
+  - Deleting the reduced-motion rule failed 13.
+- **Criterion 14** passes in `e2e/avatars.spec.ts` (by `e2e-author`, 13 tests: https, scp,
+  a worktree, an added repo, one request per owner, every kind of miss, and a relaunch).
+  Never reading the cache failed its relaunch test.
+- **The "logs once" halves of 12 and 14, and the config parse with a worktree,** are cargo
+  tests (`pr_links::tests::item12_*`, `avatars::tests::item14_*`). The app's stderr
+  isn't readable from e2e.
+- **The real fetch:** `cargo test real_github -- --ignored` got the author's avatar from
+  github.com through `NSURLSession`, and read an unknown owner as `HTTP 404`.
+- **Criterion 15:** `sidebar-order.spec.ts` passes unchanged, as does every other
+  existing spec in the full run.
+
+**Not proved:**
+- Criterion 13 by hand: the motion's look, and macOS's Reduce motion switch reaching
+  `data-motion`.
+- Criterion 14 in the installed app against real repos.
+- Light mode by eye. The rows use only existing roles, which `check-theme` measures.
+  The dark rows were seen in an e2e screenshot.
+- Criterion 22 with a working indicator animating.

@@ -436,9 +436,12 @@ svg.avatar {
   white-space: nowrap;
 }
 
+/* The 18px chips take no more height than the detail's line, so a row that gains a PR
+   doesn't grow and nudge the rows below. */
 .session .prs {
   grid-area: 2 / 3;
   justify-self: end;
+  margin-block: -1px;
 }
 
 /* PR links: the newest as `#N`, then `+k` for the rest. */

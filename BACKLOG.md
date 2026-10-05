@@ -97,8 +97,9 @@ UI pass, from zeron*. It runs while daily use and MVP 2's `/decide` carry on.
     Until then, the frost behind the sidebar is subtle.
   - The decision is in `PLAN-ui-pass.md` → *Chosen*, and the gate's status in
     *Slice 2 — the speed gate*.
-- [ ] **3. Rows.** Two-line rows, the moving indicator, the time from `updatedAt`, and
-  group headers with GitHub avatars.
+- [x] **3. Rows.** Shipped 2026-10-04 (below). Two-line rows, the moving indicator, the
+  time from `updatedAt`, and group headers with GitHub avatars. The hand halves of
+  criteria 13 and 14 wait on the installed app (`PLAN-ui-pass.md`, *Slice 3*).
 - [ ] **4. Motion.** One motion catalog, and frosted popovers.
 - [ ] **5. Surfaces.** The new-session canvas, the ⌘K palette, and the keymap, which
   takes over *Keyboard switching*.
@@ -200,6 +201,9 @@ gate on merge instead of push. See `NOTES.md` → *Chapter 2 closed*.)
 
 ## Shipped
 
+- 2026-10-04: chapter 5, slice 3, *Rows* (`PLAN-ui-pass.md`, *Slice 3*). Rows have two
+  lines and show the time since `updatedAt`. Working shows a cell wave, and needs you
+  breathes. Group headers show the GitHub owner's avatar, fetched once and cached.
 - 2026-10-04: slice 1's hand items, and the fix they found.
   - xterm read none of our `rgb(r g b / a%)` colors, and kept its opaque black. The
     terminal theme now writes hex, and `check-theme` fails any color xterm can't parse.

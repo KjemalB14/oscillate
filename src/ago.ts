@@ -17,14 +17,15 @@ export function ago(at: number, now: number): string {
 }
 
 /**
- * The time, re-read every 30s, so a row's `ago` is never more than 30s behind: well
- * inside criterion 12's 60s. A poll re-renders the rows with a fresh time too.
+ * The time at this render, with a re-render every 30s, so a row's `ago` is never more
+ * than 30s behind: well inside criterion 12's 60s. A render for any other reason, such
+ * as a poll, reads the clock afresh too.
  */
 export function useNow(every = 30_000): number {
-  const [now, setNow] = useState(Date.now);
+  const [, setTick] = useState(0);
   useEffect(() => {
-    const id = window.setInterval(() => setNow(Date.now()), every);
+    const id = window.setInterval(() => setTick((t) => t + 1), every);
     return () => window.clearInterval(id);
   }, [every]);
-  return now;
+  return Date.now();
 }
