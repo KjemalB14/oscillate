@@ -35,6 +35,20 @@ way, with what was rejected:
   measured backdrops first.
 - **What it cost to find out:** `getPropertyValue` on the root serializes the catalog in
   seconds (`.14s`, `0s`), not as written. The spec compares numbers.
+- **The merge gate is blocked by an occluded e2e window, not by this slice.** Two full
+  runs on `7aa235a` failed the same 27–28 tests: `new-session`, `repos-claude-dir`,
+  `sidebar-resize`, `stop-remove` and `trust-pane`. Run alone in a quiet moment,
+  `new-session` passed 13/13 on the same build. `sidebar-resize` on **`main`'s `src`**
+  failed 6 of 9 the same way. A probe in the failing state read `document.hidden: true`,
+  0 animation frames in 500ms, a frozen `document.timeline`, and the window at
+  screenY 1169 on a 1169pt-tall screen. So WebKit had stopped the page's clock: floats
+  stay at their first frame (opacity 0, which WebdriverIO's `isDisplayed` counts as
+  hidden), and the sidebar's transition never settles. `caffeinate -dimsu` didn't help.
+  This is very likely slice 2's unexplained double-click flake too.
+  **The proposed fix, not built:** in e2e builds only, call WKWebView's private
+  `_setWindowOcclusionDetectionEnabled:NO` on the main webview in `setup` (objc2, as
+  `glass.rs` does), the way Playwright's WebKit runner keeps hidden pages ticking. Then
+  re-run the full suite on the committed tree.
 - **The window grants didn't reach this job.** It was a `--bg` session claimed from the
   daemon's spare pool, attached in the installed app, and `drive-window` and
   `screencapture` both failed (no Accessibility, no Screen Recording). Its process tree
