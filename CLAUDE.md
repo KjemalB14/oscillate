@@ -154,6 +154,11 @@ zeron, from tokens to a ⌘K palette. Its decisions and criteria are in `PLAN-ui
     `https://github.com/<owner>.png`, fetched once through `NSURLSession`, and cached in
     the app data dir's `avatars/`. Any miss is a folder glyph. E2e builds fetch only
     from the harness's local server (`OSCILLATE_E2E_AVATAR_BASE`).
+- **Slice 4, *Motion*, is built** on `slice4-motion`, not yet merged.
+  - Every duration is a variable in `src/motion.css`'s catalog, and all are 0 under
+    `data-motion="reduce"`. Only the state indicators' loops name their own.
+  - The row menu, PR menu, remove confirm, new-session box and quit notice sit on one
+    `.frosted` surface. Its blur is subtle until the glass alphas lower `raised`.
 
 - Dev: `npm run tauri dev`. Release binary: `npx tauri build --no-bundle`.
 - Install: quit the app, then `npx tauri build` and `ditto

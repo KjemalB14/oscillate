@@ -238,7 +238,7 @@ export default function App() {
             />
           )}
           {refused && (
-            <p className="quit-refused" role="alert">
+            <p className="quit-refused frosted motion-menu-in" role="alert">
               {refused}
             </p>
           )}
