@@ -462,3 +462,34 @@ and criteria 23–27. The order of the rest of slice 2:
   turn: record one as the script's `--help` says, write `e2e/fixtures/claude-turn.json`,
   and run `npm run e2e:speed`. Criteria 24–27 wait on it. Criterion 22 with DOM isn't
   measured either.
+
+## Slice 2 — the chrome: what was built and proved (2026-10-04)
+
+**Built:**
+- `titleBarStyle: "Overlay"` with a hidden title. The traffic lights are at
+  `{ x: 16, y: 23 }`, which centers them in the sidebar's 40px strip beside the toggle.
+- `src/PaneHeader.tsx` shows the name, the repo, the state and the PR chips. Its empty
+  space is a `data-tauri-drag-region`.
+- `layout.rs` keeps `layout.json` (the width, clamped to 208–400, and collapsed) beside
+  `repos.json`.
+- The sidebar's edge resizes it, two clicks reset it, and ⌃⌘S or the toggle collapses
+  it, with a 200ms ease that's off under reduced motion.
+
+**Proved:**
+- **Criterion 8's content** passes in `e2e/pane-header.spec.ts` (by `e2e-author`).
+  Dropping the header's PR chips turned it red. **The drag passed by hand:** a CGEvent
+  drag on the header's empty space moved the dev window by (+100, +50), and back.
+- **Criterion 9** passes in `e2e/sidebar-resize.spec.ts` (by `e2e-author`, 9 tests,
+  including ⌃⌘S never reaching the PTY). Dropping the page's clamp turned it red.
+- **Criterion 6's traffic lights** are inset over the sidebar, in a screenshot of the
+  dev window (`~/Documents/oscillate-hand-checks/2026-10-04-slice2-chrome/`).
+- **Criterion 7** passed by hand in the spike.
+- **Criterion 10:** the existing trust-pane specs pass in the full suite (103/103).
+
+**Not proved:**
+- Criterion 6's see-through terminal: it's parked with the speed gate.
+- Criterion 6's glass in a release build: it's checked once installed.
+- Criterion 10 by hand.
+- Light mode by hand: the header and the strip use the existing roles, which
+  `check-theme` measures.
+- Criterion 22's budget with the glass on.

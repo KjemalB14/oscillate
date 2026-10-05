@@ -9,6 +9,36 @@ Newest entries at the top.
 
 ---
 
+## 2026-10-04 — Slice 2's chrome
+
+The results are in `PLAN-ui-pass.md` → *Slice 2 — the chrome*. What it cost to find
+out:
+- **WebDriver's mouse in WKWebView is thin.**
+  - A drag sends only `mousedown` and `mouseup`: no pointer events, and no
+    `mousemove`.
+  - A double-click is two `click`s with `detail: 0`, and no `dblclick`.
+  - So the edge uses window mouse listeners, applies the release's position as a
+    move, and detects a double-click from two clicks within 500ms, ignoring a click
+    that ends a drag.
+  - **Rejected:** pointer capture and `onDoubleClick`. They're right for a real mouse,
+    but no spec could drive them.
+- **The first full run failed the double-click reset, then the tests after it.** It
+  passed alone and in a second full run (103/103). The guess, not proved, is that
+  under the suite's load WebDriver's two clicks landed more than 500ms apart. Watch
+  for it.
+- **`trafficLightPosition` doesn't set the lights' top inset.** `y: 14` centered them
+  at about 11pt; `y: 23` centers them in the 40px strip. It was measured from
+  screenshots.
+- **A dev window once came up with this session selected and attached**, beside the
+  installed app's attach of the same session, and drew garbage. No code path selects
+  a row on its own, and a second launch didn't repeat it, so a stray click is the
+  likely cause. The dev app was quit within seconds. **Keep dev windows off the
+  session a job runs in:** screenshot, and quit.
+- **The fake attach now logs its PTY's size** (`fake.sizes`), and each pane shows
+  `data-cols` and `data-rows`, so a spec can check the refit against the PTY itself.
+
+---
+
 ## 2026-10-04 — The speed gate, built and parked
 
 The status is in `PLAN-ui-pass.md` → *Slice 2 — the speed gate*.

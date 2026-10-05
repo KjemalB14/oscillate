@@ -85,11 +85,18 @@ UI pass, from zeron*. It runs while daily use and MVP 2's `/decide` carry on.
   macOS, Geist and JetBrains Mono bundled, the terminal's theme in both modes, and thin
   scrollbars with edge fades. Items 1 and 3 passed by hand the same day, after a fix:
   the terminal is opaque until slice 2 (`NOTES.md`, *Slice 1's hand items*).
-- [ ] **2. Chrome.** Liquid Glass through our own objc2 module, the overlay title bar
-  and the pane header, and sidebar collapse and resize. **The spike is in**
-  (`slice2-chrome`): the glass composes, and the fallback works. A see-through terminal
-  fails on WebGL in light mode. **The terminal is decided:** DOM behind a speed gate,
-  else opaque (`PLAN-ui-pass.md`, criteria 23–27).
+- [x] **2. Chrome.** Shipped 2026-10-04: Liquid Glass behind the window (`glass.rs`),
+  the overlay title bar, the pane header, and sidebar collapse and resize
+  (`layout.rs`). The terminal stays opaque on WebGL, and the glass shows only through
+  the chrome, at today's 90–94% (*The see-through terminal and the glass alphas*,
+  below).
+- [ ] **The see-through terminal and the glass alphas.** Parked from slice 2.
+  - Record a real Claude turn and run the speed gate (`npm run e2e:speed`, criterion
+    23). If DOM passes, do criteria 24, 25 and 27.
+  - Measure the glass's backdrops and lower the alphas toward 55% (criterion 26).
+    Until then, the frost behind the sidebar is subtle.
+  - The decision is in `PLAN-ui-pass.md` → *Chosen*, and the gate's status in
+    *Slice 2 — the speed gate*.
 - [ ] **3. Rows.** Two-line rows, the moving indicator, the time from `updatedAt`, and
   group headers with GitHub avatars.
 - [ ] **4. Motion.** One motion catalog, and frosted popovers.
