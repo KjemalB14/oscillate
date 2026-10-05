@@ -9,6 +9,28 @@ Newest entries at the top.
 
 ---
 
+## 2026-10-04 — The terminal's `/decide`: DOM behind a price gate
+
+The choice, its gate and the rejections are in `PLAN-ui-pass.md` → *Chosen*, *The glass
+shows through the terminal*, and criteria 23–27. What was found on the way that shaped
+it:
+- **DOM's "reads, but isn't dimmed" is an xterm bug, and our CSS can fix it.** The DOM
+  renderer gives SGR 2 a generated class color at half opacity only for palette
+  colors. An RGB foreground goes inline (`color:#666`), undimmed, and `xterm.css` pins
+  `.xterm-dim` at `opacity: 1 !important`. Claude's status line is truecolor, so it
+  hits exactly that path. The rule has to skip cells with a background (or it dims the
+  background too), and palette-colored cells (or they're dimmed twice).
+- **`bench-flood` can't run in a pane any more.** It needs a shell, and panes run only
+  `claude attach`. A dev-only shell pane would be a spawn path outside invariant 1. So
+  the price is taken by replaying bytes into `term.write`, which compares the two
+  renderers on the same input instead of comparing against Ghostty.
+- **The contrast check's backdrops decide the look.** With the sidebar at 55%,
+  `check-theme` fails 33 pairs over pure black and white (dark text on the sidebar over
+  white is 3.53:1). But the glass is the backdrop, and it frosts. So the honest
+  extremes are what the glass shows at its darkest and lightest, measured.
+
+---
+
 ## 2026-10-04 — Slice 2's glass spike
 
 The results are in `PLAN-ui-pass.md` → *Slice 2 — the glass spike*.
