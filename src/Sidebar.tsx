@@ -161,7 +161,7 @@ function SessionRow({ session, selected, now, onSelect, action, onMenu, onConfir
       </li>
       {id && action?.kind === "confirm" && (
         <li
-          className="row-confirm"
+          className="row-confirm frosted motion-menu-in"
           role="group"
           aria-label={`Remove ${name}?`}
           onKeyDown={(e) => e.key === "Escape" && onDismiss(id)}
@@ -211,10 +211,11 @@ function FloatingMenu({ x, y, label, onClose, children }: {
   const [pos, setPos] = useState({ left: x, top: y });
 
   useLayoutEffect(() => {
-    const r = ref.current!.getBoundingClientRect();
+    // Its layout size: the box, not the entrance's scaled-down first frame.
+    const { offsetWidth: w, offsetHeight: h } = ref.current!;
     setPos({
-      left: Math.max(4, Math.min(x, window.innerWidth - r.width - 4)),
-      top: Math.max(4, Math.min(y, window.innerHeight - r.height - 4)),
+      left: Math.max(4, Math.min(x, window.innerWidth - w - 4)),
+      top: Math.max(4, Math.min(y, window.innerHeight - h - 4)),
     });
   }, [x, y]);
 
@@ -238,7 +239,7 @@ function FloatingMenu({ x, y, label, onClose, children }: {
   }, [x, y]);
 
   return (
-    <div ref={ref} className="row-menu" role="menu" aria-label={label} style={pos}>
+    <div ref={ref} className="row-menu frosted motion-menu-in" role="menu" aria-label={label} style={pos}>
       {children}
     </div>
   );

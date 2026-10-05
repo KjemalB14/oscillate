@@ -554,3 +554,42 @@ and criteria 23–27. The order of the rest of slice 2:
 - Light mode by eye. The rows use only existing roles, which `check-theme` measures.
   The dark rows were seen in an e2e screenshot.
 - Criterion 22 with a working indicator animating.
+
+## Slice 4 — Motion: what was built and proved (2026-10-04)
+
+**Built:**
+- **`src/motion.css` is the catalog**, imported once before `App.css`:
+  `--motion-menu-in` (140ms), `--motion-dialog-in` (180ms), `--motion-fade-in` (500ms),
+  `--motion-fade-quick` (150ms) and `--motion-size` (200ms), with the `menu-in`,
+  `dialog-in` and `fade-in` keyframes and one class per entry. Under
+  `:root[data-motion="reduce"]` every duration is `0ms`. Nothing else in the CSS names a
+  duration, except the state indicators' own loops, which reduced motion stops outright.
+  - The sidebar's width, the chevron and the group actions now run on the catalog
+    (`--motion-size`, `--motion-fade-quick`), so their per-element reduced-motion rules
+    went.
+- **The floats:** the row menu, the PR menu and the remove confirm enter with
+  `menu-in`. The new-session box's scrim fades in over `fade-quick`, and its panel enters
+  with `dialog-in`. `fade-in` waits for slice 5's canvas.
+- **`.frosted` is the one surface** for those four and the quit notice: the `raised`
+  tint, `backdrop-filter: blur(20px) saturate(160%)`, a hairline and a soft shadow.
+  **`raised` keeps its 94–95% alpha**, so the blur barely shows until the glass alphas
+  are measured (*The see-through terminal and the glass alphas*).
+- The remove confirm is now a float tinted 10% `failed` over `raised`. Its Remove
+  button is unfilled, because `failed` over the hover fill measured 4.06:1 in dark mode
+  over white. `check-theme` measures both new surfaces.
+
+**Proved:**
+- **Criterion 16** passes in `e2e/motion.spec.ts` (by `e2e-author`, 16 tests: each
+  float's keyframes and duration, a root override of `--motion-menu-in` and
+  `--motion-dialog-in` reaching every float that uses them, and every duration 0 under
+  reduced motion). Each break turned its claim red:
+  - Hard-coding `menu-in`'s 140ms failed the three menu-in floats' override tests and
+    their reduced-motion tests (6).
+  - Deleting the reduced-motion block failed all six reduced-motion tests.
+- `check-theme` passes with the confirm's two new surfaces.
+
+**Not proved:**
+- **Criterion 17 by hand:** each float's frost, hairline and shadow in both modes over a
+  busy wallpaper. The blur is subtle at today's `raised` alpha, by design.
+- The entrances' look in the release app, and macOS's Reduce motion reaching them (the
+  same switch slice 3's hand item checks).

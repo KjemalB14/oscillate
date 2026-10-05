@@ -1,0 +1,74 @@
+/* The motion catalog (PLAN-ui-pass.md, slice 4): every duration and curve the chrome
+   moves with, defined once. Nothing else in the CSS names a duration, except the state
+   indicators' own loops, which reduced motion stops outright.
+
+   Under reduced motion (`data-motion="reduce"`, set by `src/theme.ts`) every duration
+   is 0, so everything that uses the catalog lands at once. */
+:root {
+  --motion-menu-in: 140ms;
+  --motion-dialog-in: 180ms;
+  --motion-fade-in: 500ms;
+  --motion-fade-quick: 150ms;
+  --motion-size: 200ms;
+
+  --ease-out: ease-out;
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+:root[data-motion="reduce"] {
+  --motion-menu-in: 0ms;
+  --motion-dialog-in: 0ms;
+  --motion-fade-in: 0ms;
+  --motion-fade-quick: 0ms;
+  --motion-size: 0ms;
+}
+
+/* A menu or a small float, out of the point or row it belongs to. */
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-2px) scale(0.96);
+  }
+}
+
+/* A dialog, over its scrim. */
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.motion-menu-in {
+  animation: menu-in var(--motion-menu-in) var(--ease-out);
+}
+
+.motion-dialog-in {
+  animation: dialog-in var(--motion-dialog-in) var(--ease-out);
+}
+
+.motion-fade-in {
+  animation: fade-in var(--motion-fade-in) var(--ease-out-expo);
+}
+
+.motion-fade-quick {
+  animation: fade-in var(--motion-fade-quick) var(--ease-out);
+}
+
+/* The one surface every float sits on: the raised tint, frosted over whatever is
+   behind it, with a hairline and a soft shadow. Only the shadow names a color. */
+.frosted {
+  border: 1px solid var(--hairline);
+  background: var(--raised);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  backdrop-filter: blur(20px) saturate(160%);
+  box-shadow:
+    0 10px 30px rgb(0 0 0 / 28%),
+    0 1px 3px rgb(0 0 0 / 14%);
+}

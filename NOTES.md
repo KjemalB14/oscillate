@@ -9,6 +9,62 @@ Newest entries at the top.
 
 ---
 
+## 2026-10-04 — Slice 4's motion
+
+The results are in `PLAN-ui-pass.md` → *Slice 4 — Motion*. The decisions taken on the
+way, with what was rejected:
+- **The catalog is its own file, `src/motion.css`, with one class per entry**
+  (`.motion-menu-in` and so on). **Rejected:** writing `animation:` on each float's own
+  rule. It would scatter the catalog back across `App.css`, which is what criterion 16's
+  "defined in one place" rules out.
+- **Reduced motion zeroes the variables, not the animations.** Everything on the catalog
+  lands at once with no per-element rule, and a spec can read the zero. The state
+  indicators' infinite loops keep `animation: none`: a 0s infinite loop is a still
+  frame the engine picks, not one we choose.
+- **No fill mode on the entrances.** With `both`, a finished `menu-in` would hold a
+  transform on the menu forever. Without a delay, the first frame is the `from`
+  keyframe anyway.
+- **The menu clamps by its layout size** (`offsetWidth`/`offsetHeight`), not
+  `getBoundingClientRect`, which would measure the entrance's first, scaled-down frame.
+- **The remove confirm enters as a menu**, since it's anchored under its row like one.
+  Only the new-session box is a dialog. **The quit notice joined the frosted surface:**
+  it was the one other `raised` float, and leaving it out would keep a second float
+  style.
+- **`raised` stays at 94–95%.** **Rejected:** lowering it now so the frost shows. That
+  is the glass-alphas work, parked with the speed gate, and it needs the glass's
+  measured backdrops first.
+- **What it cost to find out:** `getPropertyValue` on the root serializes the catalog in
+  seconds (`.14s`, `0s`), not as written. The spec compares numbers.
+- **The merge gate is blocked by an occluded e2e window, not by this slice.** Two full
+  runs on `7aa235a` failed the same 27–28 tests: `new-session`, `repos-claude-dir`,
+  `sidebar-resize`, `stop-remove` and `trust-pane`. Run alone in a quiet moment,
+  `new-session` passed 13/13 on the same build. `sidebar-resize` on **`main`'s `src`**
+  failed 6 of 9 the same way. A probe in the failing state read `document.hidden: true`,
+  0 animation frames in 500ms, a frozen `document.timeline`, and the window at
+  screenY 1169 on a 1169pt-tall screen. So WebKit had stopped the page's clock: floats
+  stay at their first frame (opacity 0, which WebdriverIO's `isDisplayed` counts as
+  hidden), and the sidebar's transition never settles. `caffeinate -dimsu` didn't help.
+  This is very likely slice 2's unexplained double-click flake too.
+  **The fix:** in e2e builds only, `keep_ticking_when_covered` (`lib.rs`) calls WKWebView's
+  private `_setWindowOcclusionDetectionEnabled:NO` on the main webview in `setup`, the way
+  Playwright's WebKit runner keeps hidden pages ticking. With it, at the same screenY, the
+  probe read 31 frames in 500ms and `sidebar-resize` passed 9/9.
+  **The control is not proved.** By then the window was no longer covered, so a build
+  without the call ticked too. WebDriver's minimize is a no-op in this driver, and the job
+  has no Accessibility grant, so it couldn't cover the window on demand. The next frozen
+  run is the test: it should not freeze.
+  **Rejected:** `animation-fill-mode`, or no opacity in the entrances. They'd only hide the
+  frozen clock from `isDisplayed`; the sidebar's transition would still never settle.
+- **The window grants didn't reach this job.** It was a `--bg` session claimed from the
+  daemon's spare pool, attached in the installed app, and `drive-window` and
+  `screencapture` both failed (no Accessibility, no Screen Recording). Its process tree
+  hangs off the daemon's `bg-pty-host` under launchd. The guess, not proved, is that
+  macOS attributes a job to whoever spawned it, so a job the app starts with `--bg`
+  gets the app's grants and a claimed spare doesn't. Slice 3's hand items stayed open
+  because of it.
+
+---
+
 ## 2026-10-04 — Slice 3's rows
 
 The results are in `PLAN-ui-pass.md` → *Slice 3 — Rows*. The decisions taken on the

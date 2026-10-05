@@ -93,6 +93,8 @@ for (const mode of ["dark", "light"]) {
     "raised+ground (inputs)": { layers: [c.raised, c.ground], on: { text: TEXT, muted: LARGE } },
     "sidebar+failed 12% (row error)": { layers: [c.sidebar, tint("failed", 12)], on: { failed: TEXT } },
     "raised+failed 12% (new-session error)": { layers: [c.raised, tint("failed", 12)], on: { failed: TEXT } },
+    "raised+failed 10% (remove confirm)": { layers: [c.raised, tint("failed", 10)], on: { text: TEXT, failed: TEXT, focus: LARGE } },
+    "raised+failed 10%+hover (its Cancel)": { layers: [c.raised, tint("failed", 10), c.hover], on: { text: TEXT } },
     "sidebar+needsYou 12% (trust bar)": { layers: [c.sidebar, tint("needsYou", 12)], on: { needsYou: TEXT, muted: LARGE } },
     "sidebar+needsYou 16% (trust entry)": { layers: [c.sidebar, tint("needsYou", 16)], on: { needsYou: TEXT } },
     "focus fill": { layers: [c.focus], on: { onFocus: TEXT } },

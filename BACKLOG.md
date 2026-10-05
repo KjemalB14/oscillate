@@ -100,7 +100,10 @@ UI pass, from zeron*. It runs while daily use and MVP 2's `/decide` carry on.
 - [x] **3. Rows.** Shipped 2026-10-04 (below). Two-line rows, the moving indicator, the
   time from `updatedAt`, and group headers with GitHub avatars. The hand halves of
   criteria 13 and 14 wait on the installed app (`PLAN-ui-pass.md`, *Slice 3*).
-- [ ] **4. Motion.** One motion catalog, and frosted popovers.
+- [x] **4. Motion.** Shipped 2026-10-04: one motion catalog (`src/motion.css`), every
+  duration 0 under reduced motion, and one frosted surface for the floats. Criterion
+  17's look waits on a hand check, and the frost stays subtle until the glass alphas
+  (`PLAN-ui-pass.md`, *Slice 4*).
 - [ ] **5. Surfaces.** The new-session canvas, the ⌘K palette, and the keymap, which
   takes over *Keyboard switching*.
 
@@ -111,6 +114,8 @@ UI pass, from zeron*. It runs while daily use and MVP 2's `/decide` carry on.
   **Oscillate.app** (Accessibility, Screen & System Audio Recording), not `claude.exe`.
   `drive-window`, `screencapture` and System Events' appearance switch all work from a
   job attached in the installed app.
+  **Not from every job:** one claimed from the daemon's spare pool got neither grant
+  (`NOTES.md`, *Slice 4's motion*).
 - [ ] **Claude's own grays in dark mode.** The author's Claude Code theme is `light`, so
   Claude sends colors meant for a light background. In Oscillate's dark mode its
   muted and dim text sits at about 1.7–1.9:1. It isn't the palette. Try one of

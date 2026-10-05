@@ -97,8 +97,9 @@ export function NewSessionBox({ cwd, label, sessions, initial, onStarted, onUntr
   }, [waitingFor]);
 
   return (
-    <div className="new-session" role="dialog" aria-label={`New session in ${label}`}>
+    <div className="new-session motion-fade-quick" role="dialog" aria-label={`New session in ${label}`}>
       <form
+        className="frosted motion-dialog-in"
         onSubmit={(e) => {
           e.preventDefault();
           submit();
