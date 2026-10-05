@@ -9,7 +9,7 @@ Newest entries at the top.
 
 ---
 
-## 2026-10-04 — The terminal's `/decide`: DOM behind a price gate
+## 2026-10-04 — The terminal's `/decide`: DOM behind a speed gate
 
 The choice, its gate and the rejections are in `PLAN-ui-pass.md` → *Chosen*, *The glass
 shows through the terminal*, and criteria 23–27. What was found on the way that shaped
@@ -22,7 +22,7 @@ it:
   background too), and palette-colored cells (or they're dimmed twice).
 - **`bench-flood` can't run in a pane any more.** It needs a shell, and panes run only
   `claude attach`. A dev-only shell pane would be a spawn path outside invariant 1. So
-  the price is taken by replaying bytes into `term.write`, which compares the two
+  the speed is measured by replaying bytes into `term.write`, which compares the two
   renderers on the same input instead of comparing against Ghostty.
 - **The contrast check's backdrops decide the look.** With the sidebar at 55%,
   `check-theme` fails 33 pairs over pure black and white (dark text on the sidebar over

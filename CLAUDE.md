@@ -132,7 +132,7 @@ zeron, from tokens to a ⌘K palette. Its decisions and criteria are in `PLAN-ui
 - **Slice 2, *Chrome*, is open on `slice2-chrome`, which isn't merged.** Its glass spike
   is built (`glass.rs`), and the glass composes behind the chrome. The see-through
   terminal fails on WebGL in light mode. `/decide` re-settled it the same day: the
-  DOM renderer behind a price gate, else an opaque terminal, with alphas from the
+  DOM renderer behind a speed gate, else an opaque terminal, with alphas from the
   measured glass (`PLAN-ui-pass.md`, *Chosen*, and criteria 23–27).
 
 - Dev: `npm run tauri dev`. Release binary: `npx tauri build --no-bundle`.

@@ -33,10 +33,10 @@ wants it to look and feel like zeron while daily use and MVP 2's `/decide` carry
   the class is missing or fails, the window is opaque in the ground color, and one line
   is logged. The app is ad-hoc signed and never goes to the App Store, so a private API
   costs only the risk that a macOS update breaks it, and the fallback covers that.
-- **The glass shows through the terminal, on xterm's DOM renderer, if it pays its way**
+- **The glass shows through the terminal, on xterm's DOM renderer, if it is fast enough**
   (re-decided 2026-10-04, after the spike). Chrome surfaces are translucent tints over
   the same glass.
-  - **A price gate comes first.** Fixed bytes are replayed straight into a pane with
+  - **A speed gate comes first.** Fixed bytes are replayed straight into a pane with
     `term.write` under each renderer: a recorded long streaming Claude turn, plus
     `bench-flood`'s `seq` and `cat` payloads. The DOM renderer must drain the Claude turn
     within 2× of WebGL with no visible stall, and criterion 22 must hold with it.
@@ -160,15 +160,15 @@ wants it to look and feel like zeron while daily use and MVP 2's `/decide` carry
 - **A glass sidebar beside an opaque terminal.** It's safer for contrast, but it isn't
   the see-through terminal the author uses in Ghostty. *(Re-weighed 2026-10-04 with the
   spike's evidence. It's still not the first choice, but it's now the fallback if the
-  DOM renderer fails its price gate.)*
+  DOM renderer fails its speed gate.)*
 - **Chasing the WebGL bug before choosing** (2026-10-04). It would keep WebGL's speed if
   the bug is ours, but its cost is open-ended, and it may end in an upstream wait. The
   repro is still written, for upstream.
 - **Patching xterm's pinned beta WebGL addon in place.** Every bump would need it
   re-checked (`NOTES.md`, *Slice 2's glass spike*).
-- **Pricing DOM with chapter 1's bars against Ghostty** (2026-10-04). Panes run only
+- **Timing DOM with chapter 1's bars against Ghostty** (2026-10-04). Panes run only
   `claude attach` now, so `bench-flood` would need a dev-only shell pane, which is
-  outside invariant 1's spawn list. **Pricing by hand only** leaves no number to compare
+  outside invariant 1's spawn list. **Judging speed by hand only** leaves no number to compare
   against later.
 - **The DOM renderer everywhere** (2026-10-04). It's one path to test, but the opaque
   fallback would pay DOM's cost for nothing.
@@ -224,11 +224,11 @@ wants it to look and feel like zeron while daily use and MVP 2's `/decide` carry
     draws dim (SGR 2) glyphs at about 7% instead of 50%, and Claude's status line
     vanishes in light mode. The DOM renderer reads but doesn't dim, and costs
     speed. So the terminal is opaque until slice 2 finds dim text that reads in a
-    translucent terminal: a WebGL fix, or the DOM renderer priced with
+    translucent terminal: a WebGL fix, or the DOM renderer timed with
     `bench-flood`. If neither works, the see-through terminal comes back to
     `/decide`, and the glass can still sit behind the chrome.
   - **Answered (2026-10-04, slice 2's spike and `/decide`).** The glass composes. The
-    terminal goes see-through on the DOM renderer behind a price gate, else it stays
+    terminal goes see-through on the DOM renderer behind a speed gate, else it stays
     opaque (*Chosen*, *The glass shows through the terminal*).
 - **Whether the avatar fetch needs a user-visible switch.** It's left out until daily
   use asks for one.
@@ -274,7 +274,7 @@ script, or by hand in the release app from a foreground `claude` in Ghostty.
 *Added 2026-10-04 by the terminal's `/decide`. They're numbered after 22 so nothing
 above is renumbered.*
 
-23. **The price gate.** A committed script replays a recorded long streaming Claude
+23. **The speed gate.** A committed script replays a recorded long streaming Claude
     turn into a pane under each renderer. DOM drains it within 2× of WebGL's time, with
     no visible stall. `seq` and `cat` are timed and recorded, not gated. Criterion 22
     holds with DOM. *(script + hand)* If it fails, the terminal is opaque on WebGL
@@ -434,14 +434,14 @@ budget with the glass on.
 
 **So the chapter goes back to `/decide`**, as *Still open* says, for the terminal only.
 The glass behind the chrome works. The question is what the terminal does:
-- the DOM renderer, priced by `bench-flood`;
+- the DOM renderer, timed by `bench-flood`;
 - an opaque terminal beside glass chrome, which this PLAN rejected (*A glass sidebar
   beside an opaque terminal*), now with evidence;
 - or a fix to xterm's WebGL transparency, first as a minimal repro for upstream.
 
 **Decided (2026-10-04, `/decide`):** *Chosen* → *The glass shows through the terminal*,
 and criteria 23–27. The order of the rest of slice 2:
-1. The price gate (23). Its verdict picks DOM or the opaque terminal.
+1. The speed gate (23). Its verdict picks DOM or the opaque terminal.
 2. The measured backdrops and the alphas (26, then 2 and 3), with the palette moved if
    the floor is high.
 3. The renderer switch and the dim rule (24, 25), only if 23 passed.
