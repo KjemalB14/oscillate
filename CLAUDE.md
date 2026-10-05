@@ -19,6 +19,13 @@ the next one. Finished means:
   (`.claude/e2e-merge-gate.sh`) refuses it until the branch's exact tree has a green
   `npm run e2e`, or its commits say `E2E: none — <why>`. Only `main` is pushed, never
   working branches;
+  - **Claude merges and pushes `main` itself**, including from a `claude --bg` job in a
+    worktree: this is standing permission. A worktree can't check out `main`, so it
+    merges onto a detached copy: `git fetch`, then `git switch --detach origin/main`,
+    then `git merge --no-ff <branch>`, then `git push origin HEAD:main`. The gate checks
+    that merge too. Docs-only commits for the closing go on top before the push. Never
+    force-push, and never push a merge the gate didn't pass. The main checkout then
+    needs `git pull --ff-only`, which Claude says in the handoff.
 - `CLAUDE.md` states the new state;
 - `NOTES.md` carries the reasoning;
 - `BACKLOG.md` is ticked;

@@ -9,6 +9,30 @@ Newest entries at the top.
 
 ---
 
+## 2026-10-05 — Claude merges from a worktree
+
+Sessions now run in worktrees, often as `claude --bg` jobs. Handing the author the
+merge-and-push commands to run cost them a round trip on every slice. So CLAUDE.md's
+closing rule now gives standing permission: Claude merges into `main` and pushes it.
+- **A worktree merges onto a detached `origin/main`.** Git won't check out `main` in a
+  second worktree, and the session's guard refuses git aimed at the main checkout. Slice
+  4 went in this way: the merge's tree was identical to the green `84d4dd8`.
+- **That merge slipped past the gate.** The gate only judged a merge while `main` was
+  checked out. Now it also judges one onto a detached `main` or `origin/main`, and one
+  chained after `git switch --detach origin/main` in the same command. The hook runs
+  before the command, so at that point HEAD isn't detached yet.
+  `.claude/e2e-merge-gate.cases.sh` has five new cases, and all five failed on the old
+  gate.
+- **The gate stays on the merge, not the push** (*A GitHub remote*). A docs commit on
+  top of a green merge changes the tree, so gating the push on a green tree would mean a
+  full e2e run for every docs edit.
+- **Rejected:** a separate integration worktree that keeps `main` checked out for
+  merges. It's one more checkout to keep in sync, and the main checkout already holds
+  `main`. **Also rejected:** keeping merges for the author. That's the slowdown this
+  change removes.
+
+---
+
 ## 2026-10-04 — Slice 4's motion
 
 The results are in `PLAN-ui-pass.md` → *Slice 4 — Motion*. The decisions taken on the
