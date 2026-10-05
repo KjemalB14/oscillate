@@ -507,6 +507,17 @@ exit 2
   }
 
   /**
+   * Every size a fake attach for `id` saw its PTY at, oldest first (optionally one
+   * pid's): one at start, then one per resize (SIGWINCH). The last is the PTY's size now.
+   */
+  sizes(id: string, pid?: number): { pid: number; at: number; rows: number; cols: number }[] {
+    return this.log()
+      .map((l) => l.match(/^size (\S+) pid=(\d+) at=(\d+) rows=(\d+) cols=(\d+)$/))
+      .filter((m): m is RegExpMatchArray => !!m && m[1] === id && (pid === undefined || m[2] === String(pid)))
+      .map((m) => ({ pid: Number(m[2]), at: Number(m[3]), rows: Number(m[4]), cols: Number(m[5]) }));
+  }
+
+  /**
    * The fake's processes alive right now, from `ps`: `attach` pids by session id,
    * agent-view pids, and trust `claude` pids. Zombies don't count.
    */
@@ -597,6 +608,13 @@ for my $sig (qw(HUP INT QUIT TERM PIPE)) {
         kill $sig, $$;
     };
 }
+# Its PTY's size, at start and on every resize, so a spec can match the pane's cols.
+sub log_size {
+    my ($rows, $cols) = split " ", (qx{stty size 2>/dev/null} // "");
+    say_log("size $id pid=$$ at=" . now() . " rows=$rows cols=$cols") if $cols;
+}
+$SIG{WINCH} = \&log_size;
+log_size();
 print "fake attach $id\r\n";
 print "\e[?1000h\e[?1006h\e[?1004h";
 # Perl runs signal handlers between ops, and macOS restarts a blocked read, so the read

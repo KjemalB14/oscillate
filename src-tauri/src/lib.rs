@@ -2,6 +2,7 @@ mod attention;
 mod claude;
 mod endsession;
 mod glass;
+mod layout;
 mod newsession;
 mod notifications;
 mod poll;
@@ -194,6 +195,17 @@ fn repos_remove(repos: State<'_, repos::Repos>, path: String) -> Result<Vec<Stri
     repos.remove(&path)
 }
 
+#[tauri::command]
+fn layout_get(layout: State<'_, layout::Layout>) -> layout::Sidebar {
+    layout.get()
+}
+
+/// Stores the sidebar's width (clamped) and collapsed state; returns what was stored.
+#[tauri::command]
+fn layout_set(layout: State<'_, layout::Layout>, next: layout::Sidebar) -> Result<layout::Sidebar, String> {
+    layout.set(next)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default()
@@ -215,13 +227,15 @@ pub fn run() {
                 .unwrap_or_else(|| {
                     PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(".claude")
                 });
-            // `OSCILLATE_DATA_DIR` keeps e2e runs' `repos.json` in their temp dir.
+            // `OSCILLATE_DATA_DIR` keeps e2e runs' `repos.json` and `layout.json` in their
+            // temp dir.
             let data_dir = match std::env::var_os("OSCILLATE_DATA_DIR").filter(|d| !d.is_empty()) {
                 Some(dir) => PathBuf::from(dir),
                 None => app.path().app_data_dir()?,
             };
             // Both before the poller, whose first list reads them.
             app.manage(repos::Repos::load(&data_dir));
+            app.manage(layout::Layout::load(&data_dir));
             app.manage(notifications::Notifier::new(app.handle()));
             let (tx, rx) = mpsc::channel();
             let poll_now = tx.clone();
@@ -267,6 +281,8 @@ pub fn run() {
             repos_list,
             repos_add,
             repos_remove,
+            layout_get,
+            layout_set,
             set_visible_session,
             open_pr,
             glass_state,

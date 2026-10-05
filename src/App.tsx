@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import "./App.css";
-import type { RepoGroup } from "./groups";
+import { groupSessions, type RepoGroup } from "./groups";
+import { useLayout } from "./layout";
 import { NewSessionBox, type Mode } from "./NewSessionBox";
+import { PaneHeader } from "./PaneHeader";
 import type { TrustInfo } from "./pty";
 import { useAddedRepos } from "./repos";
 import { useRowActions } from "./rowActions";
@@ -36,6 +38,9 @@ export default function App() {
   const sessions = useSessions();
   const repos = useAddedRepos();
   const rowActions = useRowActions();
+  const layout = useLayout();
+  const toggleSidebar = useRef(layout.toggle);
+  toggleSidebar.current = layout.toggle;
   // The group whose "+" prompt box is open; one box at a time.
   const [newIn, setNewIn] = useState<BoxFor | null>(null);
   // The start waiting on the trust pane; at most one.
@@ -116,8 +121,18 @@ export default function App() {
       clearTimeout(timer);
       timer = setTimeout(() => setRefused(null), REFUSAL_MS);
     });
+    // ⌃⌘S toggles the sidebar (the macOS convention). Like ⌘Q, it's taken here, in the
+    // capture phase, so it never reaches a terminal or its PTY.
     const onKey = (e: KeyboardEvent) => {
-      if (!e.metaKey || e.key.toLowerCase() !== "q") return;
+      if (!e.metaKey) return;
+      const key = e.key.toLowerCase();
+      if (e.ctrlKey && key === "s") {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!e.repeat) toggleSidebar.current();
+        return;
+      }
+      if (key !== "q") return;
       e.preventDefault();
       e.stopPropagation();
       invoke("quit").catch(() => {}); // a refusal arrives as `quit-refused`
@@ -151,8 +166,21 @@ export default function App() {
   };
 
   const byId = new Map((sessions ?? []).map((s) => [s.id, s]));
+  const shown = (selected && selected !== TRUST && byId.get(selected)) || null;
+  const shownRepo = shown
+    ? groupSessions(sessions ?? [], repos.list).find((g) => g.sessions.includes(shown))?.label ?? null
+    : null;
   return (
-    <div className="app">
+    <div
+      className="app"
+      data-layout={layout.loaded ? "ready" : undefined}
+      style={
+        {
+          "--sidebar-width": `${layout.collapsed ? 0 : layout.width}px`,
+          "--sidebar-open-width": `${layout.width}px`,
+        } as CSSProperties
+      }
+    >
       <Sidebar
         sessions={sessions}
         selected={selected}
@@ -164,47 +192,57 @@ export default function App() {
         trust={trust && { label: trust.label, selected: selected === TRUST }}
         onShowTrust={showTrust}
         rowActions={rowActions}
+        layout={layout}
       />
       <main className="pane-area">
-        {open.map((id) => (
-          <TerminalPane
-            key={id}
-            session={id}
-            label={byId.get(id)?.name ?? id}
-            visible={id === selected}
-            attempt={attempts[id] ?? 0}
-            onStatus={(s, st) => status.current.set(s, st)}
-            onReattach={reattach}
-          />
-        ))}
-        {trust && (
-          <TrustPane
-            key={trust.cwd}
-            info={trust}
-            visible={selected === TRUST}
-            focusRequest={trustFocus}
-            onExit={() => trustEnded(trust)}
-            onFailed={(message) => trustEnded(trust, message)}
-          />
-        )}
-        {selected === null && <p className="pane-empty">Select a session to open it here.</p>}
-        {newIn && (
-          <NewSessionBox
-            key={`${newIn.key}:${newIn.initial ? "retry" : "new"}`}
-            cwd={newIn.key}
-            label={newIn.label}
-            sessions={sessions}
-            initial={newIn.initial}
-            onStarted={select}
-            onUntrusted={(prompt, mode) => untrusted(newIn, prompt, mode)}
-            onClose={() => setNewIn(null)}
-          />
-        )}
-        {refused && (
-          <p className="quit-refused" role="alert">
-            {refused}
-          </p>
-        )}
+        <PaneHeader
+          session={shown}
+          repo={shownRepo}
+          trust={selected === TRUST && trust ? trust.label : null}
+          collapsed={layout.collapsed}
+          onToggle={layout.toggle}
+        />
+        <div className="pane-stack">
+          {open.map((id) => (
+            <TerminalPane
+              key={id}
+              session={id}
+              label={byId.get(id)?.name ?? id}
+              visible={id === selected}
+              attempt={attempts[id] ?? 0}
+              onStatus={(s, st) => status.current.set(s, st)}
+              onReattach={reattach}
+            />
+          ))}
+          {trust && (
+            <TrustPane
+              key={trust.cwd}
+              info={trust}
+              visible={selected === TRUST}
+              focusRequest={trustFocus}
+              onExit={() => trustEnded(trust)}
+              onFailed={(message) => trustEnded(trust, message)}
+            />
+          )}
+          {selected === null && <p className="pane-empty">Select a session to open it here.</p>}
+          {newIn && (
+            <NewSessionBox
+              key={`${newIn.key}:${newIn.initial ? "retry" : "new"}`}
+              cwd={newIn.key}
+              label={newIn.label}
+              sessions={sessions}
+              initial={newIn.initial}
+              onStarted={select}
+              onUntrusted={(prompt, mode) => untrusted(newIn, prompt, mode)}
+              onClose={() => setNewIn(null)}
+            />
+          )}
+          {refused && (
+            <p className="quit-refused" role="alert">
+              {refused}
+            </p>
+          )}
+        </div>
       </main>
     </div>
   );

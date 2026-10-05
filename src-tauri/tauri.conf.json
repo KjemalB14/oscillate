@@ -15,7 +15,10 @@
         "title": "Oscillate",
         "width": 1100,
         "height": 720,
-        "transparent": true
+        "transparent": true,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "trafficLightPosition": { "x": 16, "y": 14 }
       }
     ],
     "macOSPrivateApi": true,

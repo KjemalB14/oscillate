@@ -8,6 +8,7 @@ import {
 } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { groupSessions, type RepoGroup } from "./groups";
+import { MAX_WIDTH, MIN_WIDTH, type Layout } from "./layout";
 import { STOPPABLE, type RowAction, type RowActions } from "./rowActions";
 import type { Pr, Session, UiState } from "./sessions";
 
@@ -23,7 +24,7 @@ const STATE_WORDS: Record<UiState, string> = {
   unknown: "unknown",
 };
 
-function stateWords(s: Session): string {
+export function stateWords(s: Session): string {
   return s.state === "unknown" && s.rawState ? `unknown (${s.rawState})` : STATE_WORDS[s.state];
 }
 
@@ -36,7 +37,7 @@ function openPr(pr: Pr) {
  * A row's PR links: the newest as `#N`, then `+k` for the rest, which opens a menu of
  * them, newest first. Clicks and keys here never select the row.
  */
-function PrChips({ prs, name, onMore }: { prs: Pr[]; name: string; onMore: (e: ReactMouseEvent<HTMLButtonElement>) => void }) {
+export function PrChips({ prs, name, onMore }: { prs: Pr[]; name: string; onMore: (e: ReactMouseEvent<HTMLButtonElement>) => void }) {
   if (prs.length === 0) return null;
   const newest = prs[prs.length - 1];
   const rest = prs.length - 1;
@@ -227,14 +228,25 @@ function RowMenu({ at, onStop, onRemove, onClose }: {
 }
 
 /** Where a `+k` menu opened: a session's older PRs, newest first. */
-interface PrMenuAt {
+export interface PrMenuAt {
   name: string;
   prs: Pr[];
   x: number;
   y: number;
 }
 
-function PrMenu({ at, onClose }: { at: PrMenuAt; onClose: () => void }) {
+/** The `+k` menu for `session`, under the chip that was clicked. */
+export function prMenuAt(session: Session, e: ReactMouseEvent<HTMLButtonElement>): PrMenuAt {
+  const chip = e.currentTarget.getBoundingClientRect();
+  return {
+    name: session.name ?? session.id ?? "",
+    prs: session.prs.slice(0, -1).reverse(),
+    x: chip.left,
+    y: chip.bottom + 2,
+  };
+}
+
+export function PrMenu({ at, onClose }: { at: PrMenuAt; onClose: () => void }) {
   return (
     <FloatingMenu x={at.x} y={at.y} label={`More PRs from ${at.name}`} onClose={onClose}>
       {at.prs.map((pr) => (
@@ -270,6 +282,81 @@ interface SidebarProps {
   onShowTrust: () => void;
   /** Stop and Remove, from a background row's context menu. */
   rowActions: RowActions;
+  /** The width, collapse and edge drag (`src/layout.ts`). */
+  layout: Layout;
+}
+
+/** Two clicks on the edge within this reset it, as macOS's default double-click interval. */
+const DOUBLE_CLICK_MS = 500;
+
+/**
+ * The sidebar's right edge: drag to resize within `MIN_WIDTH`–`MAX_WIDTH`, double-click
+ * to reset. The width is saved once, when the drag ends.
+ *
+ * Mouse events on the window, not pointer capture: WebDriver's drag in WKWebView sends
+ * only a mousedown and a mouseup, so the release's position counts as a move too. Its
+ * double-click is two clicks and no `dblclick`, so two clicks close together reset.
+ */
+function ResizeHandle({ layout }: { layout: Layout }) {
+  const lastClick = useRef(0);
+  // A press that moved was a drag; its click counts toward no double-click.
+  const dragged = useRef(false);
+  const onClick = () => {
+    const now = performance.now();
+    if (dragged.current) {
+      lastClick.current = 0;
+      return;
+    }
+    if (now - lastClick.current < DOUBLE_CLICK_MS) {
+      lastClick.current = 0;
+      layout.reset();
+    } else lastClick.current = now;
+  };
+  const drag = useRef(layout.drag);
+  drag.current = layout.drag;
+  const commit = useRef(layout.commit);
+  commit.current = layout.commit;
+  const onMouseDown = (down: ReactMouseEvent<HTMLDivElement>) => {
+    if (down.button !== 0 || down.detail > 1) return; // a double-click's second press resets
+    down.preventDefault();
+    const from = { x: down.clientX, width: layout.width };
+    const to = (e: MouseEvent) => drag.current(from.width + e.clientX - from.x);
+    const up = (e: MouseEvent) => {
+      dragged.current = e.clientX !== from.x;
+      window.removeEventListener("mousemove", to);
+      window.removeEventListener("mouseup", up);
+      delete document.documentElement.dataset.resizing;
+      commit.current(from.width + e.clientX - from.x);
+    };
+    document.documentElement.dataset.resizing = "";
+    window.addEventListener("mousemove", to);
+    window.addEventListener("mouseup", up);
+  };
+  return (
+    <div
+      className="sidebar-edge"
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Resize sidebar"
+      aria-valuemin={MIN_WIDTH}
+      aria-valuemax={MAX_WIDTH}
+      aria-valuenow={layout.width}
+      onMouseDown={onMouseDown}
+      onClick={onClick}
+    />
+  );
+}
+
+/** The sidebar toggle: in the sidebar's title strip when open, in the header when not. */
+export function SidebarToggle({ onToggle }: { onToggle: () => void }) {
+  return (
+    <button className="sidebar-toggle" aria-label="Toggle sidebar" title="Toggle sidebar (⌃⌘S)" onClick={onToggle}>
+      <svg viewBox="0 0 16 16" aria-hidden="true">
+        <rect x="1.5" y="2.5" width="13" height="11" rx="2.5" />
+        <line x1="6" y1="2.5" x2="6" y2="13.5" />
+      </svg>
+    </button>
+  );
 }
 
 export function Sidebar({
@@ -283,6 +370,7 @@ export function Sidebar({
   trust,
   onShowTrust,
   rowActions,
+  layout,
 }: SidebarProps) {
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
   const [menu, setMenu] = useState<MenuAt | null>(null);
@@ -303,15 +391,7 @@ export function Sidebar({
     window.addEventListener("resize", measureFade);
     return () => window.removeEventListener("resize", measureFade);
   }, []);
-  const openPrMenu = (session: Session, e: ReactMouseEvent<HTMLButtonElement>) => {
-    const chip = e.currentTarget.getBoundingClientRect();
-    setPrMenu({
-      name: session.name ?? session.id ?? "",
-      prs: session.prs.slice(0, -1).reverse(),
-      x: chip.left,
-      y: chip.bottom + 2,
-    });
-  };
+  const openPrMenu = (session: Session, e: ReactMouseEvent<HTMLButtonElement>) => setPrMenu(prMenuAt(session, e));
   const openMenu = (session: Session, e: ReactMouseEvent<HTMLLIElement>) => {
     const id = session.id!;
     // Not while its Stop or Remove runs; there is nothing more to ask of it.
@@ -409,7 +489,10 @@ export function Sidebar({
   }
 
   return (
-    <nav className="sidebar" aria-label="Sessions">
+    <nav className="sidebar" aria-label="Sessions" data-collapsed={layout.collapsed || undefined} inert={layout.collapsed}>
+      <div className="sidebar-strip" data-tauri-drag-region>
+        {!layout.collapsed && <SidebarToggle onToggle={layout.toggle} />}
+      </div>
       <div
         ref={scroller}
         className="sidebar-scroll"
@@ -439,6 +522,7 @@ export function Sidebar({
         />
       )}
       {prMenu && <PrMenu at={prMenu} onClose={() => setPrMenu(null)} />}
+      {!layout.collapsed && <ResizeHandle layout={layout} />}
     </nav>
   );
 }
