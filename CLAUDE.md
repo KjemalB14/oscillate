@@ -114,7 +114,8 @@ decisions and what it didn't prove are in `NOTES.md` → *Chapter 3 closed*.
   is listing.
 - The e2e build logs notifications, badge changes and opened links instead of reaching
   macOS (`e2e/README.md`).
-- **The installed app is chapter 4's final build.** Launched as
+- **The installed app is chapter 5, slice 3's build** (`f82cbac`, installed 2026-10-04).
+  Launched as
   `/Applications/Oscillate.app/Contents/MacOS/oscillate 2>log`, it logs each notify
   decision, each tap, each opened link, and each PR-link miss.
 
